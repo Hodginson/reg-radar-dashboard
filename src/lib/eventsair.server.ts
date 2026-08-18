@@ -1,0 +1,200 @@
+/**
+ * EventsAir External API access (server-only).
+ *
+ * Credentials (set as project secrets):
+ *  - EVENTSAIR_TENANT_ID
+ *  - EVENTSAIR_CLIENT_ID
+ *  - EVENTSAIR_CLIENT_SECRET
+ *
+ * When credentials are absent the module returns demo data so the dashboard
+ * is fully usable before the API is wired up.
+ */
+
+const TOKEN_URL = "https://login.eventsair.com/connect/token";
+const API_URL = "https://api.eventsair.com/graphql";
+
+export type EventSummary = { id: string; name: string; startDate: string | null };
+
+export type DashboardData = {
+  demo: boolean;
+  event: EventSummary;
+  totalRegistrations: number;
+  last7Days: number;
+  registeredToday: number;
+  byType: { type: string; count: number }[];
+  daily: { date: string; count: number }[];
+  recent: { name: string; type: string; date: string }[];
+};
+
+function credentials() {
+  const tenantId = process.env["EVENTSAIR_TENANT_ID"];
+  const clientId = process.env["EVENTSAIR_CLIENT_ID"];
+  const clientSecret = process.env["EVENTSAIR_CLIENT_SECRET"];
+  if (!tenantId || !clientId || !clientSecret) return null;
+  return { tenantId, clientId, clientSecret };
+}
+
+export function hasCredentials() {
+  return credentials() !== null;
+}
+
+async function getToken(clientId: string, clientSecret: string) {
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: "eventsair",
+  });
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`EventsAir auth failed [${res.status}]: ${await res.text()}`);
+  }
+  const json = (await res.json()) as { access_token?: string };
+  if (!json.access_token) throw new Error("EventsAir auth returned no access token");
+  return json.access_token;
+}
+
+async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const creds = credentials();
+  if (!creds) throw new Error("EventsAir credentials are not configured");
+  const token = await getToken(creds.clientId, creds.clientSecret);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query, variables: { tenantId: creds.tenantId, ...variables } }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
+  const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
+  if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
+  return json.data as T;
+}
+
+/* ---------------------------------- demo ---------------------------------- */
+
+const DEMO_EVENTS: EventSummary[] = [
+  { id: "demo-1", name: "National Conference 2026", startDate: "2026-10-14" },
+  { id: "demo-2", name: "Annual Members Summit", startDate: "2026-11-03" },
+];
+
+const DEMO_TYPES = ["Full Delegate", "Day Delegate", "Speaker", "Exhibitor", "Student"];
+
+function demoDashboard(eventId: string): DashboardData {
+  const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
+  const seedBase = event.id === "demo-2" ? 3 : 7;
+  const daily: { date: string; count: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (30 - i) * 0.8;
+    daily.push({ date: d.toISOString().slice(0, 10), count: Math.max(1, Math.round(10 + wave)) });
+  }
+  const total = daily.reduce((s, d) => s + d.count, 0);
+  const byType = DEMO_TYPES.map((type, i) => ({
+    type,
+    count: Math.round((total * [0.42, 0.26, 0.12, 0.11, 0.09][i]!) as number),
+  }));
+  const recent = Array.from({ length: 6 }).map((_, i) => ({
+    name: ["A. Nguyen", "J. Patel", "M. O'Brien", "S. Kimura", "L. Rossi", "T. Adebayo"][i]!,
+    type: DEMO_TYPES[i % DEMO_TYPES.length]!,
+    date: daily[daily.length - 1 - Math.floor(i / 2)]!.date,
+  }));
+  return {
+    demo: true,
+    event,
+    totalRegistrations: total,
+    last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
+    registeredToday: daily[daily.length - 1]!.count,
+    byType,
+    daily,
+    recent,
+  };
+}
+
+/* ---------------------------------- live ---------------------------------- */
+
+export async function fetchEvents(): Promise<{ demo: boolean; events: EventSummary[] }> {
+  if (!hasCredentials()) return { demo: true, events: DEMO_EVENTS };
+  const data = await gql<{ events: { id: string; name: string; startDate: string | null }[] }>(
+    `query Events($tenantId: ID!) { events(tenantId: $tenantId) { id name startDate } }`,
+  );
+  return { demo: false, events: data.events ?? [] };
+}
+
+type LiveRegistration = {
+  id: string;
+  dateCreated: string;
+  registrationType?: { name?: string | null } | null;
+  contact?: { firstName?: string | null; lastName?: string | null } | null;
+};
+
+export async function fetchDashboard(eventId: string): Promise<DashboardData> {
+  if (!hasCredentials()) return demoDashboard(eventId);
+
+  const data = await gql<{
+    event: { id: string; name: string; startDate: string | null } | null;
+    registrations: LiveRegistration[];
+  }>(
+    `query Dashboard($tenantId: ID!, $eventId: ID!) {
+       event(tenantId: $tenantId, eventId: $eventId) { id name startDate }
+       registrations(tenantId: $tenantId, eventId: $eventId) {
+         id
+         dateCreated
+         registrationType { name }
+         contact { firstName lastName }
+       }
+     }`,
+    { eventId },
+  );
+
+  const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
+  const regs = data.registrations ?? [];
+
+  const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+  const dailyMap = new Map<string, number>();
+  const typeMap = new Map<string, number>();
+  for (const r of regs) {
+    const key = dayKey(r.dateCreated);
+    dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
+    const t = r.registrationType?.name ?? "Unspecified";
+    typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
+  }
+
+  const daily: { date: string; count: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    daily.push({ date: key, count: dailyMap.get(key) ?? 0 });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const recent = [...regs]
+    .sort((a, b) => +new Date(b.dateCreated) - +new Date(a.dateCreated))
+    .slice(0, 6)
+    .map((r) => ({
+      name: `${r.contact?.firstName ?? ""} ${r.contact?.lastName ?? ""}`.trim() || "Registrant",
+      type: r.registrationType?.name ?? "Unspecified",
+      date: dayKey(r.dateCreated),
+    }));
+
+  return {
+    demo: false,
+    event,
+    totalRegistrations: regs.length,
+    last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
+    registeredToday: dailyMap.get(today) ?? 0,
+    byType: [...typeMap.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count),
+    daily,
+    recent,
+  };
+}
