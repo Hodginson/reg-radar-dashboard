@@ -105,7 +105,7 @@ function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             {data?.demo && <Badge variant="secondary">Demo data</Badge>}
-            <Select value={selectedId} onValueChange={setEventId}>
+            <Select value={selectedId ?? ""} onValueChange={setEventId}>
               <SelectTrigger className="w-64">
                 <SelectValue placeholder="Choose an event" />
               </SelectTrigger>
