@@ -148,10 +148,10 @@ function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
   const seedBase = event.id === "demo-2" ? 3 : 7;
   const daily: { date: string; count: number }[] = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = 89; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (30 - i) * 0.8;
+    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (90 - i) * 0.8;
     daily.push({ date: d.toISOString().slice(0, 10), count: Math.max(1, Math.round(10 + wave)) });
   }
   const total = daily.reduce((s, d) => s + d.count, 0);
@@ -229,7 +229,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
   }
 
-  // Anchor the 30-day window to the latest registration so historic events
+  // Anchor the 90-day window to the latest registration so historic events
   // still show a meaningful trend instead of a flat line of zeroes.
   const latestReg = regs.reduce<number>(
     (max, r) => Math.max(max, +new Date(r.createdAt)),
@@ -237,7 +237,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   );
   const anchor = latestReg && latestReg < Date.now() ? new Date(latestReg) : new Date();
   const daily: { date: string; count: number }[] = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = 89; i >= 0; i--) {
     const d = new Date(anchor);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
