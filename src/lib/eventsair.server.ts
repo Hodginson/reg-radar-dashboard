@@ -25,6 +25,7 @@ export type DashboardData = {
   last7Days: number;
   registeredToday: number;
   byType: { type: string; count: number }[];
+  byLocation: { location: string; count: number }[];
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
