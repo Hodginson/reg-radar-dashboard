@@ -314,6 +314,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     byType: [...typeMap.entries()]
       .map(([type, count]) => ({ type, count }))
       .sort((a, b) => b.count - a.count),
+    byLocation: [...locationMap.entries()]
+      .map(([location, count]) => ({ location, count }))
+      .sort((a, b) => b.count - a.count),
     daily,
     recent,
   };
