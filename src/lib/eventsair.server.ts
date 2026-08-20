@@ -204,6 +204,11 @@ function demoDashboard(eventId: string): DashboardData {
     type: DEMO_TYPES[i % DEMO_TYPES.length]!,
     date: daily[daily.length - 1 - Math.floor(i / 2)]!.date,
   }));
+  const demoLocationMap = new Map<string, number>();
+  for (const t of byType) {
+    const loc = locationFromTicketName(t.type);
+    demoLocationMap.set(loc, (demoLocationMap.get(loc) ?? 0) + t.count);
+  }
   return {
     demo: true,
     event,
@@ -211,6 +216,9 @@ function demoDashboard(eventId: string): DashboardData {
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: daily[daily.length - 1]!.count,
     byType,
+    byLocation: [...demoLocationMap.entries()]
+      .map(([location, count]) => ({ location, count }))
+      .sort((a, b) => b.count - a.count),
     daily,
     recent,
   };
