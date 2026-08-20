@@ -61,23 +61,41 @@ async function getToken(tenantId: string, clientId: string, clientSecret: string
   return json.access_token;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * EventsAir occasionally rejects a perfectly valid token with
+ * "The incoming token doesn't contain a `roles` claim" (transient auth-node
+ * issue). Retry with a fresh token a few times before giving up.
+ */
 async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const creds = credentials();
   if (!creds) throw new Error("EventsAir credentials are not configured");
-  const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
-  const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
-  if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
-  return json.data as T;
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const text = await res.text();
+    const transient = text.includes("`roles` claim") || res.status === 502 || res.status === 503;
+    if (transient) {
+      lastError = new Error(`EventsAir API transient failure [${res.status}]`);
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
+    const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
+    if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
+    return json.data as T;
+  }
+  throw lastError ?? new Error("EventsAir API failed");
 }
 
 async function paginatedRegistrations(eventId: string): Promise<LiveRegistration[]> {
