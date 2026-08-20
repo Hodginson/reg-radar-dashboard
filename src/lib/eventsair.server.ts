@@ -143,7 +143,46 @@ const DEMO_EVENTS: EventSummary[] = [
   { id: "demo-2", name: "Annual Members Summit", startDate: "2026-11-03" },
 ];
 
-const DEMO_TYPES = ["Full Delegate", "Day Delegate", "Speaker", "Exhibitor", "Student"];
+const DEMO_TYPES = [
+  "Melbourne Full Delegate",
+  "Auckland Full Delegate",
+  "Christchurch Full Delegate",
+  "Melbourne Day Delegate",
+  "Auckland Student",
+];
+
+/**
+ * Ticket names usually embed the city ("Melbourne Full Delegate",
+ * "Symposium - Auckland"). Match a known city name anywhere in the ticket name.
+ */
+const KNOWN_LOCATIONS = [
+  "Melbourne",
+  "Sydney",
+  "Brisbane",
+  "Perth",
+  "Adelaide",
+  "Canberra",
+  "Hobart",
+  "Darwin",
+  "Gold Coast",
+  "Newcastle",
+  "Auckland",
+  "Christchurch",
+  "Wellington",
+  "Hamilton",
+  "Dunedin",
+  "Queenstown",
+  "Singapore",
+  "Online",
+  "Virtual",
+];
+
+export function locationFromTicketName(name: string): string {
+  const lower = name.toLowerCase();
+  const match = KNOWN_LOCATIONS.find((city) => lower.includes(city.toLowerCase()));
+  if (!match) return "Unspecified";
+  return match === "Virtual" ? "Online" : match;
+}
 
 function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
