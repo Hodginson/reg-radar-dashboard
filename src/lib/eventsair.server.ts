@@ -41,14 +41,14 @@ export function hasCredentials() {
   return credentials() !== null;
 }
 
-async function getToken(clientId: string, clientSecret: string) {
+async function getToken(tenantId: string, clientId: string, clientSecret: string) {
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: clientId,
     client_secret: clientSecret,
-    scope: "eventsair",
+    scope: API_SCOPE,
   });
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetch(tokenUrl(tenantId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
