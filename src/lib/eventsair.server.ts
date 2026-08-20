@@ -270,6 +270,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
   const typeMap = new Map<string, number>();
+  const locationMap = new Map<string, number>();
   for (const r of regs) {
     const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
