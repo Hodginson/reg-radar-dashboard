@@ -10,8 +10,11 @@
  * is fully usable before the API is wired up.
  */
 
-const TOKEN_URL = "https://login.eventsair.com/connect/token";
 const API_URL = "https://api.eventsair.com/graphql";
+const API_SCOPE =
+  "https://eventsairprod.onmicrosoft.com/85d8f626-4e3d-4357-89c6-327d4e6d3d93/.default";
+const tokenUrl = (tenantId: string) =>
+  `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 
 export type EventSummary = { id: string; name: string; startDate: string | null };
 
@@ -38,14 +41,14 @@ export function hasCredentials() {
   return credentials() !== null;
 }
 
-async function getToken(clientId: string, clientSecret: string) {
+async function getToken(tenantId: string, clientId: string, clientSecret: string) {
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: clientId,
     client_secret: clientSecret,
-    scope: "eventsair",
+    scope: API_SCOPE,
   });
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetch(tokenUrl(tenantId), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -61,7 +64,7 @@ async function getToken(clientId: string, clientSecret: string) {
 async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const creds = credentials();
   if (!creds) throw new Error("EventsAir credentials are not configured");
-  const token = await getToken(creds.clientId, creds.clientSecret);
+  const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -119,6 +122,8 @@ function demoDashboard(eventId: string): DashboardData {
 }
 
 /* ---------------------------------- live ---------------------------------- */
+
+export const demoEvents = DEMO_EVENTS;
 
 export async function fetchEvents(): Promise<{ demo: boolean; events: EventSummary[] }> {
   if (!hasCredentials()) return { demo: true, events: DEMO_EVENTS };
