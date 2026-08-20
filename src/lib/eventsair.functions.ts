@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 
 export const listEvents = createServerFn({ method: "GET" }).handler(async () => {
-  const { fetchEvents } = await import("./eventsair.server");
+  const { fetchEvents, demoEvents } = await import("./eventsair.server");
   try {
-    return await fetchEvents();
+    return { ...(await fetchEvents()), error: null as string | null };
   } catch (error) {
     console.error("listEvents failed", error);
-    return { demo: true, events: [], error: (error as Error).message };
+    return { demo: true, events: demoEvents, error: (error as Error).message };
   }
 });
 
