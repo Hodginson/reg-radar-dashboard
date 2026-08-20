@@ -71,13 +71,50 @@ async function gql<T>(query: string, variables: Record<string, unknown> = {}): P
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query, variables: { tenantId: creds.tenantId, ...variables } }),
+    body: JSON.stringify({ query, variables }),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
   const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
   if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
   return json.data as T;
+}
+
+async function paginatedRegistrations(eventId: string): Promise<LiveRegistration[]> {
+  const all: LiveRegistration[] = [];
+  let offset = 0;
+  const limit = 1000;
+  while (true) {
+    const data = await gql<{
+      event: {
+        registrationsPaged: {
+          items: LiveRegistration[];
+          pageInfo: { totalCount: number; hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Registrations($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          registrationsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              createdAt
+              type { name }
+              contact { firstName lastName }
+            }
+            pageInfo { totalCount hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.registrationsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
 }
 
 /* ---------------------------------- demo ---------------------------------- */
