@@ -64,7 +64,7 @@ async function getToken(tenantId: string, clientId: string, clientSecret: string
 async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const creds = credentials();
   if (!creds) throw new Error("EventsAir credentials are not configured");
-  const token = await getToken(creds.clientId, creds.clientSecret);
+  const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
