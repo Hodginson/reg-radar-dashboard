@@ -11,7 +11,7 @@ export const listEvents = createServerFn({ method: "GET" }).handler(async () => 
 });
 
 export const getEventDashboard = createServerFn({ method: "GET" })
-  .inputValidator((data: { eventId: string }) => data)
+  .validator((data: { eventId: string }) => data)
   .handler(async ({ data }) => {
     const { fetchDashboard } = await import("./eventsair.server");
     return fetchDashboard(data.eventId);
