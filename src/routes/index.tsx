@@ -196,7 +196,7 @@ function Dashboard() {
               </CardContent>
             </Card>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="mt-6 grid gap-6 lg:grid-cols-1">
               <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-base font-medium">By registration type</CardTitle>
@@ -214,23 +214,6 @@ function Dashboard() {
                           style={{ width: `${(t.count / maxType) * 100}%` }}
                         />
                       </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-base font-medium">Recent registrations</CardTitle>
-                </CardHeader>
-                <CardContent className="divide-y divide-border/60">
-                  {data.recent.map((r, i) => (
-                    <div key={i} className="flex items-center justify-between py-3 text-sm">
-                      <div>
-                        <p className="text-foreground">{r.name}</p>
-                        <p className="text-xs text-muted-foreground">{r.type}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{r.date}</span>
                     </div>
                   ))}
                 </CardContent>
