@@ -123,6 +123,8 @@ function demoDashboard(eventId: string): DashboardData {
 
 /* ---------------------------------- live ---------------------------------- */
 
+export const demoEvents = DEMO_EVENTS;
+
 export async function fetchEvents(): Promise<{ demo: boolean; events: EventSummary[] }> {
   if (!hasCredentials()) return { demo: true, events: DEMO_EVENTS };
   const data = await gql<{ events: { id: string; name: string; startDate: string | null }[] }>(
