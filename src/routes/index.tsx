@@ -148,7 +148,7 @@ function Dashboard() {
             <Card className="mt-6 border-border/60">
               <CardHeader>
                 <CardTitle className="text-base font-medium">
-                  Daily registrations · last 30 days
+                  Daily registrations · 30 days to {data.daily[data.daily.length - 1]?.date}
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-72">
