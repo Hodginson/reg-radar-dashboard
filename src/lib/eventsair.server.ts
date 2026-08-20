@@ -61,29 +61,47 @@ async function getToken(tenantId: string, clientId: string, clientSecret: string
   return json.access_token;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * EventsAir occasionally rejects a perfectly valid token with
+ * "The incoming token doesn't contain a `roles` claim" (transient auth-node
+ * issue). Retry with a fresh token a few times before giving up.
+ */
 async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const creds = credentials();
   if (!creds) throw new Error("EventsAir credentials are not configured");
-  const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
-  const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
-  if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
-  return json.data as T;
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = await getToken(creds.tenantId, creds.clientId, creds.clientSecret);
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const text = await res.text();
+    const transient = text.includes("`roles` claim") || res.status === 502 || res.status === 503;
+    if (transient) {
+      lastError = new Error(`EventsAir API transient failure [${res.status}]`);
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
+    const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
+    if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
+    return json.data as T;
+  }
+  throw lastError ?? new Error("EventsAir API failed");
 }
 
 async function paginatedRegistrations(eventId: string): Promise<LiveRegistration[]> {
   const all: LiveRegistration[] = [];
   let offset = 0;
-  const limit = 1000;
+  const limit = 200;
   while (true) {
     const data = await gql<{
       event: {
@@ -211,9 +229,16 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
   }
 
+  // Anchor the 30-day window to the latest registration so historic events
+  // still show a meaningful trend instead of a flat line of zeroes.
+  const latestReg = regs.reduce<number>(
+    (max, r) => Math.max(max, +new Date(r.createdAt)),
+    0,
+  );
+  const anchor = latestReg && latestReg < Date.now() ? new Date(latestReg) : new Date();
   const daily: { date: string; count: number }[] = [];
   for (let i = 29; i >= 0; i--) {
-    const d = new Date();
+    const d = new Date(anchor);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
     daily.push({ date: key, count: dailyMap.get(key) ?? 0 });
