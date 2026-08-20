@@ -101,7 +101,7 @@ async function gql<T>(query: string, variables: Record<string, unknown> = {}): P
 async function paginatedRegistrations(eventId: string): Promise<LiveRegistration[]> {
   const all: LiveRegistration[] = [];
   let offset = 0;
-  const limit = 1000;
+  const limit = 200;
   while (true) {
     const data = await gql<{
       event: {
