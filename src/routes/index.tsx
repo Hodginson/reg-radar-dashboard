@@ -88,6 +88,7 @@ function Dashboard() {
 
   const data = dashboardQuery.data;
   const maxType = Math.max(1, ...(data?.byType.map((t) => t.count) ?? [1]));
+  const maxLocation = Math.max(1, ...(data?.byLocation.map((l) => l.count) ?? [1]));
 
   return (
     <main className="min-h-screen bg-background">
@@ -196,7 +197,29 @@ function Dashboard() {
               </CardContent>
             </Card>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-1">
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium">By location</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {data.byLocation.map((l) => (
+                    <div key={l.location}>
+                      <div className="flex items-baseline justify-between text-sm">
+                        <span className="text-foreground">{l.location}</span>
+                        <span className="tabular-nums text-muted-foreground">{l.count}</span>
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-primary"
+                          style={{ width: `${(l.count / maxLocation) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
               <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-base font-medium">By registration type</CardTitle>

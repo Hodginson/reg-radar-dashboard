@@ -25,6 +25,7 @@ export type DashboardData = {
   last7Days: number;
   registeredToday: number;
   byType: { type: string; count: number }[];
+  byLocation: { location: string; count: number }[];
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
@@ -142,7 +143,46 @@ const DEMO_EVENTS: EventSummary[] = [
   { id: "demo-2", name: "Annual Members Summit", startDate: "2026-11-03" },
 ];
 
-const DEMO_TYPES = ["Full Delegate", "Day Delegate", "Speaker", "Exhibitor", "Student"];
+const DEMO_TYPES = [
+  "Melbourne Full Delegate",
+  "Auckland Full Delegate",
+  "Christchurch Full Delegate",
+  "Melbourne Day Delegate",
+  "Auckland Student",
+];
+
+/**
+ * Ticket names usually embed the city ("Melbourne Full Delegate",
+ * "Symposium - Auckland"). Match a known city name anywhere in the ticket name.
+ */
+const KNOWN_LOCATIONS = [
+  "Melbourne",
+  "Sydney",
+  "Brisbane",
+  "Perth",
+  "Adelaide",
+  "Canberra",
+  "Hobart",
+  "Darwin",
+  "Gold Coast",
+  "Newcastle",
+  "Auckland",
+  "Christchurch",
+  "Wellington",
+  "Hamilton",
+  "Dunedin",
+  "Queenstown",
+  "Singapore",
+  "Online",
+  "Virtual",
+];
+
+export function locationFromTicketName(name: string): string {
+  const lower = name.toLowerCase();
+  const match = KNOWN_LOCATIONS.find((city) => lower.includes(city.toLowerCase()));
+  if (!match) return "Unspecified";
+  return match === "Virtual" ? "Online" : match;
+}
 
 function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
@@ -164,6 +204,11 @@ function demoDashboard(eventId: string): DashboardData {
     type: DEMO_TYPES[i % DEMO_TYPES.length]!,
     date: daily[daily.length - 1 - Math.floor(i / 2)]!.date,
   }));
+  const demoLocationMap = new Map<string, number>();
+  for (const t of byType) {
+    const loc = locationFromTicketName(t.type);
+    demoLocationMap.set(loc, (demoLocationMap.get(loc) ?? 0) + t.count);
+  }
   return {
     demo: true,
     event,
@@ -171,6 +216,9 @@ function demoDashboard(eventId: string): DashboardData {
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: daily[daily.length - 1]!.count,
     byType,
+    byLocation: [...demoLocationMap.entries()]
+      .map(([location, count]) => ({ location, count }))
+      .sort((a, b) => b.count - a.count),
     daily,
     recent,
   };
@@ -222,11 +270,14 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
   const typeMap = new Map<string, number>();
+  const locationMap = new Map<string, number>();
   for (const r of regs) {
     const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
     const t = r.type?.name ?? "Unspecified";
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
+    const loc = locationFromTicketName(t);
+    locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
   }
 
   // Anchor the 90-day window to the latest registration so historic events
@@ -262,6 +313,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     registeredToday: dailyMap.get(today) ?? 0,
     byType: [...typeMap.entries()]
       .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count),
+    byLocation: [...locationMap.entries()]
+      .map(([location, count]) => ({ location, count }))
       .sort((a, b) => b.count - a.count),
     daily,
     recent,
