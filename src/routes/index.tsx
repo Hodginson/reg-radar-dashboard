@@ -88,6 +88,7 @@ function Dashboard() {
 
   const data = dashboardQuery.data;
   const maxType = Math.max(1, ...(data?.byType.map((t) => t.count) ?? [1]));
+  const maxLocation = Math.max(1, ...(data?.byLocation.map((l) => l.count) ?? [1]));
 
   return (
     <main className="min-h-screen bg-background">
