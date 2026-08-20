@@ -10,8 +10,11 @@
  * is fully usable before the API is wired up.
  */
 
-const TOKEN_URL = "https://login.eventsair.com/connect/token";
 const API_URL = "https://api.eventsair.com/graphql";
+const API_SCOPE =
+  "https://eventsairprod.onmicrosoft.com/85d8f626-4e3d-4357-89c6-327d4e6d3d93/.default";
+const tokenUrl = (tenantId: string) =>
+  `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 
 export type EventSummary = { id: string; name: string; startDate: string | null };
 
