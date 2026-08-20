@@ -71,13 +71,50 @@ async function gql<T>(query: string, variables: Record<string, unknown> = {}): P
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query, variables: { tenantId: creds.tenantId, ...variables } }),
+    body: JSON.stringify({ query, variables }),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`EventsAir API failed [${res.status}]: ${text}`);
   const json = JSON.parse(text) as { data?: T; errors?: { message: string }[] };
   if (json.errors?.length) throw new Error(`EventsAir API error: ${json.errors[0]!.message}`);
   return json.data as T;
+}
+
+async function paginatedRegistrations(eventId: string): Promise<LiveRegistration[]> {
+  const all: LiveRegistration[] = [];
+  let offset = 0;
+  const limit = 1000;
+  while (true) {
+    const data = await gql<{
+      event: {
+        registrationsPaged: {
+          items: LiveRegistration[];
+          pageInfo: { totalCount: number; hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Registrations($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          registrationsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              createdAt
+              type { name }
+              contact { firstName lastName }
+            }
+            pageInfo { totalCount hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.registrationsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
 }
 
 /* ---------------------------------- demo ---------------------------------- */
@@ -127,16 +164,25 @@ export const demoEvents = DEMO_EVENTS;
 
 export async function fetchEvents(): Promise<{ demo: boolean; events: EventSummary[] }> {
   if (!hasCredentials()) return { demo: true, events: DEMO_EVENTS };
-  const data = await gql<{ events: { id: string; name: string; startDate: string | null }[] }>(
-    `query Events($tenantId: ID!) { events(tenantId: $tenantId) { id name startDate } }`,
+  const data = await gql<{
+    events: { id: string; name: string; startDate: string | null }[];
+  }>(
+    `query Events($offset: NonNegativeInt!, $limit: PaginationLimit!) {
+      events(input: {}, offset: $offset, limit: $limit) {
+        id
+        name
+        startDate
+      }
+    }`,
+    { offset: 0, limit: 100 },
   );
   return { demo: false, events: data.events ?? [] };
 }
 
 type LiveRegistration = {
   id: string;
-  dateCreated: string;
-  registrationType?: { name?: string | null } | null;
+  createdAt: string;
+  type?: { name?: string | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
 
@@ -145,30 +191,23 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   const data = await gql<{
     event: { id: string; name: string; startDate: string | null } | null;
-    registrations: LiveRegistration[];
   }>(
-    `query Dashboard($tenantId: ID!, $eventId: ID!) {
-       event(tenantId: $tenantId, eventId: $eventId) { id name startDate }
-       registrations(tenantId: $tenantId, eventId: $eventId) {
-         id
-         dateCreated
-         registrationType { name }
-         contact { firstName lastName }
-       }
-     }`,
+    `query Event($eventId: ID!) {
+      event(id: $eventId) { id name startDate }
+    }`,
     { eventId },
   );
 
   const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
-  const regs = data.registrations ?? [];
+  const regs = await paginatedRegistrations(eventId);
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
   const typeMap = new Map<string, number>();
   for (const r of regs) {
-    const key = dayKey(r.dateCreated);
+    const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
-    const t = r.registrationType?.name ?? "Unspecified";
+    const t = r.type?.name ?? "Unspecified";
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
   }
 
@@ -182,12 +221,12 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   const today = new Date().toISOString().slice(0, 10);
   const recent = [...regs]
-    .sort((a, b) => +new Date(b.dateCreated) - +new Date(a.dateCreated))
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .slice(0, 6)
     .map((r) => ({
       name: `${r.contact?.firstName ?? ""} ${r.contact?.lastName ?? ""}`.trim() || "Registrant",
-      type: r.registrationType?.name ?? "Unspecified",
-      date: dayKey(r.dateCreated),
+      type: r.type?.name ?? "Unspecified",
+      date: dayKey(r.createdAt),
     }));
 
   return {
