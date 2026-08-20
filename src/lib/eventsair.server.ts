@@ -229,9 +229,16 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
   }
 
+  // Anchor the 30-day window to the latest registration so historic events
+  // still show a meaningful trend instead of a flat line of zeroes.
+  const latestReg = regs.reduce<number>(
+    (max, r) => Math.max(max, +new Date(r.createdAt)),
+    0,
+  );
+  const anchor = latestReg && latestReg < Date.now() ? new Date(latestReg) : new Date();
   const daily: { date: string; count: number }[] = [];
   for (let i = 29; i >= 0; i--) {
-    const d = new Date();
+    const d = new Date(anchor);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
     daily.push({ date: key, count: dailyMap.get(key) ?? 0 });
