@@ -26,6 +26,7 @@ export type DashboardData = {
   registeredToday: number;
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
+  byMembership: { membership: string; count: number }[];
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
