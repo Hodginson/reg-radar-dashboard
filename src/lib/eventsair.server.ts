@@ -184,6 +184,17 @@ export function locationFromTicketName(name: string): string {
   return match === "Virtual" ? "Online" : match;
 }
 
+/**
+ * Complimentary "Full Conference Access" tickets that bundle Christchurch and
+ * Auckland together should not be counted as separate registrations.
+ */
+const EXCLUDED_TICKET_TYPES = ["full conference access christchurch & auckland"];
+
+export function isExcludedTicketType(name: string): boolean {
+  const normalized = name.toLowerCase().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ").trim();
+  return EXCLUDED_TICKET_TYPES.includes(normalized);
+}
+
 function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
   const seedBase = event.id === "demo-2" ? 3 : 7;
@@ -265,7 +276,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   );
 
   const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
-  const regs = await paginatedRegistrations(eventId);
+  const regs = (await paginatedRegistrations(eventId)).filter(
+    (r) => !isExcludedTicketType(r.type?.name ?? ""),
+  );
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
