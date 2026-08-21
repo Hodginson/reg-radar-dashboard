@@ -353,6 +353,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     byLocation: [...locationMap.entries()]
       .map(([location, count]) => ({ location, count }))
       .sort((a, b) => b.count - a.count),
+    byMembership: [...membershipMap.entries()]
+      .map(([membership, count]) => ({ membership, count }))
+      .sort((a, b) => b.count - a.count),
     daily,
     recent,
   };
