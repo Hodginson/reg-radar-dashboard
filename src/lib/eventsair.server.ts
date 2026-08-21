@@ -276,7 +276,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   );
 
   const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
-  const regs = await paginatedRegistrations(eventId);
+  const regs = (await paginatedRegistrations(eventId)).filter(
+    (r) => !isExcludedTicketType(r.type?.name ?? ""),
+  );
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
