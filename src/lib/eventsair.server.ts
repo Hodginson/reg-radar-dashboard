@@ -26,6 +26,7 @@ export type DashboardData = {
   registeredToday: number;
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
+  byMembership: { membership: string; count: number }[];
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
@@ -190,6 +191,19 @@ export function locationFromTicketName(name: string): string {
  */
 const EXCLUDED_TICKET_TYPES = ["full conference access christchurch & auckland"];
 
+/**
+ * Ticket names usually flag membership ("Member Full Delegate",
+ * "Non-Member Day Delegate"). Check the non-member wording first so it isn't
+ * swallowed by the plain "member" match.
+ */
+export function membershipFromTicketName(name: string): string {
+  const lower = name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
+  if (/\bnon\s?member/.test(lower) || /\bnonmember/.test(lower)) return "Non-member";
+  if (/\bmembers?\b/.test(lower)) return "Member";
+  if (/\bstudent\b/.test(lower)) return "Student";
+  return "Unspecified";
+}
+
 export function isExcludedTicketType(name: string): boolean {
   const normalized = name.toLowerCase().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ").trim();
   return EXCLUDED_TICKET_TYPES.includes(normalized);
@@ -216,9 +230,12 @@ function demoDashboard(eventId: string): DashboardData {
     date: daily[daily.length - 1 - Math.floor(i / 2)]!.date,
   }));
   const demoLocationMap = new Map<string, number>();
+  const demoMembershipMap = new Map<string, number>();
   for (const t of byType) {
     const loc = locationFromTicketName(t.type);
     demoLocationMap.set(loc, (demoLocationMap.get(loc) ?? 0) + t.count);
+    const mem = membershipFromTicketName(t.type);
+    demoMembershipMap.set(mem, (demoMembershipMap.get(mem) ?? 0) + t.count);
   }
   return {
     demo: true,
@@ -229,6 +246,9 @@ function demoDashboard(eventId: string): DashboardData {
     byType,
     byLocation: [...demoLocationMap.entries()]
       .map(([location, count]) => ({ location, count }))
+      .sort((a, b) => b.count - a.count),
+    byMembership: [...demoMembershipMap.entries()]
+      .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
     daily,
     recent,
@@ -284,6 +304,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const dailyMap = new Map<string, number>();
   const typeMap = new Map<string, number>();
   const locationMap = new Map<string, number>();
+  const membershipMap = new Map<string, number>();
   for (const r of regs) {
     const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
@@ -291,6 +312,8 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+    const mem = membershipFromTicketName(t);
+    membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
   // Anchor the 90-day window to the latest registration so historic events
@@ -329,6 +352,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       .sort((a, b) => b.count - a.count),
     byLocation: [...locationMap.entries()]
       .map(([location, count]) => ({ location, count }))
+      .sort((a, b) => b.count - a.count),
+    byMembership: [...membershipMap.entries()]
+      .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
     daily,
     recent,

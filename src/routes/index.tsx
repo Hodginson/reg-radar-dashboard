@@ -89,6 +89,7 @@ function Dashboard() {
   const data = dashboardQuery.data;
   const maxType = Math.max(1, ...(data?.byType.map((t) => t.count) ?? [1]));
   const maxLocation = Math.max(1, ...(data?.byLocation.map((l) => l.count) ?? [1]));
+  const maxMembership = Math.max(1, ...(data?.byMembership.map((m) => m.count) ?? [1]));
 
   return (
     <main className="min-h-screen bg-background">
@@ -221,6 +222,33 @@ function Dashboard() {
               </Card>
 
               <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium">Member vs non-member</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {data.byMembership.map((m) => (
+                    <div key={m.membership}>
+                      <div className="flex items-baseline justify-between text-sm">
+                        <span className="text-foreground">{m.membership}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {m.count}
+                          <span className="ml-2 text-xs">
+                            {Math.round((m.count / Math.max(1, data.totalRegistrations)) * 100)}%
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-primary"
+                          style={{ width: `${(m.count / maxMembership) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="text-base font-medium">By registration type</CardTitle>
                 </CardHeader>
