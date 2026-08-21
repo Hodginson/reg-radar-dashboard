@@ -191,6 +191,19 @@ export function locationFromTicketName(name: string): string {
  */
 const EXCLUDED_TICKET_TYPES = ["full conference access christchurch & auckland"];
 
+/**
+ * Ticket names usually flag membership ("Member Full Delegate",
+ * "Non-Member Day Delegate"). Check the non-member wording first so it isn't
+ * swallowed by the plain "member" match.
+ */
+export function membershipFromTicketName(name: string): string {
+  const lower = name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
+  if (/\bnon\s?member/.test(lower) || /\bnonmember/.test(lower)) return "Non-member";
+  if (/\bmembers?\b/.test(lower)) return "Member";
+  if (/\bstudent\b/.test(lower)) return "Student";
+  return "Unspecified";
+}
+
 export function isExcludedTicketType(name: string): boolean {
   const normalized = name.toLowerCase().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ").trim();
   return EXCLUDED_TICKET_TYPES.includes(normalized);
