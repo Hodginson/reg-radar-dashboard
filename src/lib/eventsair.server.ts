@@ -119,6 +119,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
             items {
               id
               createdAt
+              fee { amount currency { code } }
               type { name }
               contact { firstName lastName }
             }
