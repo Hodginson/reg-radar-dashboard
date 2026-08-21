@@ -503,9 +503,70 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       date: dayKey(r.createdAt),
     }));
 
+  // Sponsorship and exhibition revenue live on separate records; a failure
+  // there shouldn't take down the registration dashboard.
+  const [sponsorships, bookings] = await Promise.all([
+    paginatedSponsorships(eventId).catch(() => [] as LiveSponsorship[]),
+    paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
+  ]);
+
+  let currency = "AUD";
+  const ticketRows = regs.map((r) => {
+    currency = r.fee?.currency?.code ?? currency;
+    return { label: r.type?.name ?? "Unspecified", amount: r.fee?.amount ?? 0, count: 1 };
+  });
+  const sponsorRows = sponsorships
+    .filter((s) => !isCancelled(s.status))
+    .map((s) => {
+      currency = s.fee?.currency?.code ?? currency;
+      const quantity = s.quantity && s.quantity > 0 ? s.quantity : 1;
+      return {
+        label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
+        amount: (s.fee?.amount ?? 0) * quantity,
+        count: quantity,
+      };
+    });
+  const exhibitorRows = bookings
+    .filter((b) => !isCancelled(b.status))
+    .map((b) => {
+      currency = b.fee?.currency?.code ?? currency;
+      return {
+        label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
+        amount: b.fee?.amount ?? 0,
+        count: 1,
+      };
+    });
+
+  const total = (rows: { amount: number }[]) => rows.reduce((s, r) => s + r.amount, 0);
+  const streams: DashboardData["financials"]["streams"] = [
+    {
+      stream: "Tickets",
+      amount: total(ticketRows),
+      count: ticketRows.length,
+      items: rollup(ticketRows),
+    },
+    {
+      stream: "Exhibitors",
+      amount: total(exhibitorRows),
+      count: exhibitorRows.length,
+      items: rollup(exhibitorRows),
+    },
+    {
+      stream: "Sponsors",
+      amount: total(sponsorRows),
+      count: sponsorRows.length,
+      items: rollup(sponsorRows),
+    },
+  ];
+
   return {
     demo: false,
     event,
+    financials: {
+      currency,
+      total: streams.reduce((s, x) => s + x.amount, 0),
+      streams,
+    },
     totalRegistrations: regs.length,
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: dailyMap.get(today) ?? 0,
