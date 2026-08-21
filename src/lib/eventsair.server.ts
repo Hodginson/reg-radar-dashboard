@@ -27,6 +27,16 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  financials: {
+    currency: string;
+    total: number;
+    streams: {
+      stream: "Tickets" | "Exhibitors" | "Sponsors";
+      amount: number;
+      count: number;
+      items: { label: string; amount: number; count: number }[];
+    }[];
+  };
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
@@ -119,6 +129,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
             items {
               id
               createdAt
+              fee { amount currency { code } }
               type { name }
               contact { firstName lastName }
             }
@@ -136,6 +147,103 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
   }
   return all;
 }
+
+type LiveSponsorship = {
+  id: string;
+  quantity?: number | null;
+  status?: string | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  package?: { name?: string | null } | null;
+  sponsor?: { organizationName?: string | null } | null;
+};
+
+type LiveExhibitionBooking = {
+  id: string;
+  status?: string | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  standType?: { name?: string | null } | null;
+  exhibitor?: { organizationName?: string | null } | null;
+};
+
+async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]> {
+  const all: LiveSponsorship[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        sponsorshipsPaged: {
+          items: LiveSponsorship[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Sponsorships($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          sponsorshipsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              quantity
+              status
+              fee { amount currency { code } }
+              package { name }
+              sponsor { organizationName }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.sponsorshipsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibitionBooking[]> {
+  const all: LiveExhibitionBooking[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        exhibitionBookingsPaged: {
+          items: LiveExhibitionBooking[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Exhibition($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          exhibitionBookingsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              status
+              fee { amount currency { code } }
+              standType { name }
+              exhibitor { organizationName }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.exhibitionBookingsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+const isCancelled = (status?: string | null) =>
+  (status ?? "").toUpperCase().startsWith("CANCEL");
 
 /* ---------------------------------- demo ---------------------------------- */
 
@@ -237,9 +345,46 @@ function demoDashboard(eventId: string): DashboardData {
     const mem = membershipFromTicketName(t.type);
     demoMembershipMap.set(mem, (demoMembershipMap.get(mem) ?? 0) + t.count);
   }
+  const ticketItems = byType.map((t) => ({
+    label: t.type,
+    amount: t.count * 850,
+    count: t.count,
+  }));
+  const exhibitorItems = [
+    { label: "3x3 Booth", amount: 96000, count: 24 },
+    { label: "Premium Corner Booth", amount: 54000, count: 9 },
+    { label: "Shell Scheme", amount: 21000, count: 7 },
+  ];
+  const sponsorItems = [
+    { label: "Platinum Sponsor", amount: 60000, count: 2 },
+    { label: "Awards Dinner", amount: 32000, count: 2 },
+    { label: "Learning Centre", amount: 8800, count: 2 },
+  ];
+  const sum = (items: { amount: number }[]) => items.reduce((s, i) => s + i.amount, 0);
+  const countOf = (items: { count: number }[]) => items.reduce((s, i) => s + i.count, 0);
+  const streams: DashboardData["financials"]["streams"] = [
+    { stream: "Tickets", amount: sum(ticketItems), count: countOf(ticketItems), items: ticketItems },
+    {
+      stream: "Exhibitors",
+      amount: sum(exhibitorItems),
+      count: countOf(exhibitorItems),
+      items: exhibitorItems,
+    },
+    {
+      stream: "Sponsors",
+      amount: sum(sponsorItems),
+      count: countOf(sponsorItems),
+      items: sponsorItems,
+    },
+  ];
   return {
     demo: true,
     event,
+    financials: {
+      currency: "AUD",
+      total: streams.reduce((s, x) => s + x.amount, 0),
+      streams,
+    },
     totalRegistrations: total,
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: daily[daily.length - 1]!.count,
@@ -279,9 +424,26 @@ export async function fetchEvents(): Promise<{ demo: boolean; events: EventSumma
 type LiveRegistration = {
   id: string;
   createdAt: string;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
   type?: { name?: string | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
+
+function rollup(
+  rows: { label: string; amount: number; count: number }[],
+): { label: string; amount: number; count: number }[] {
+  const map = new Map<string, { label: string; amount: number; count: number }>();
+  for (const row of rows) {
+    const existing = map.get(row.label);
+    if (existing) {
+      existing.amount += row.amount;
+      existing.count += row.count;
+    } else {
+      map.set(row.label, { ...row });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.amount - a.amount);
+}
 
 export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   if (!hasCredentials()) return demoDashboard(eventId);
@@ -341,9 +503,70 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       date: dayKey(r.createdAt),
     }));
 
+  // Sponsorship and exhibition revenue live on separate records; a failure
+  // there shouldn't take down the registration dashboard.
+  const [sponsorships, bookings] = await Promise.all([
+    paginatedSponsorships(eventId).catch(() => [] as LiveSponsorship[]),
+    paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
+  ]);
+
+  let currency = "AUD";
+  const ticketRows = regs.map((r) => {
+    currency = r.fee?.currency?.code ?? currency;
+    return { label: r.type?.name ?? "Unspecified", amount: r.fee?.amount ?? 0, count: 1 };
+  });
+  const sponsorRows = sponsorships
+    .filter((s) => !isCancelled(s.status))
+    .map((s) => {
+      currency = s.fee?.currency?.code ?? currency;
+      const quantity = s.quantity && s.quantity > 0 ? s.quantity : 1;
+      return {
+        label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
+        amount: (s.fee?.amount ?? 0) * quantity,
+        count: quantity,
+      };
+    });
+  const exhibitorRows = bookings
+    .filter((b) => !isCancelled(b.status))
+    .map((b) => {
+      currency = b.fee?.currency?.code ?? currency;
+      return {
+        label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
+        amount: b.fee?.amount ?? 0,
+        count: 1,
+      };
+    });
+
+  const total = (rows: { amount: number }[]) => rows.reduce((s, r) => s + r.amount, 0);
+  const streams: DashboardData["financials"]["streams"] = [
+    {
+      stream: "Tickets",
+      amount: total(ticketRows),
+      count: ticketRows.length,
+      items: rollup(ticketRows),
+    },
+    {
+      stream: "Exhibitors",
+      amount: total(exhibitorRows),
+      count: exhibitorRows.length,
+      items: rollup(exhibitorRows),
+    },
+    {
+      stream: "Sponsors",
+      amount: total(sponsorRows),
+      count: sponsorRows.length,
+      items: rollup(sponsorRows),
+    },
+  ];
+
   return {
     demo: false,
     event,
+    financials: {
+      currency,
+      total: streams.reduce((s, x) => s + x.amount, 0),
+      streams,
+    },
     totalRegistrations: regs.length,
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: dailyMap.get(today) ?? 0,
