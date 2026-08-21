@@ -138,6 +138,103 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
   return all;
 }
 
+type LiveSponsorship = {
+  id: string;
+  quantity?: number | null;
+  status?: string | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  package?: { name?: string | null } | null;
+  sponsor?: { organizationName?: string | null } | null;
+};
+
+type LiveExhibitionBooking = {
+  id: string;
+  status?: string | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  standType?: { name?: string | null } | null;
+  exhibitor?: { organizationName?: string | null } | null;
+};
+
+async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]> {
+  const all: LiveSponsorship[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        sponsorshipsPaged: {
+          items: LiveSponsorship[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Sponsorships($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          sponsorshipsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              quantity
+              status
+              fee { amount currency { code } }
+              package { name }
+              sponsor { organizationName }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.sponsorshipsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibitionBooking[]> {
+  const all: LiveExhibitionBooking[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        exhibitionBookingsPaged: {
+          items: LiveExhibitionBooking[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Exhibition($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          exhibitionBookingsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              status
+              fee { amount currency { code } }
+              standType { name }
+              exhibitor { organizationName }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.exhibitionBookingsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+const isCancelled = (status?: string | null) =>
+  (status ?? "").toUpperCase().startsWith("CANCEL");
+
 /* ---------------------------------- demo ---------------------------------- */
 
 const DEMO_EVENTS: EventSummary[] = [
