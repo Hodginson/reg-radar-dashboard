@@ -424,9 +424,26 @@ export async function fetchEvents(): Promise<{ demo: boolean; events: EventSumma
 type LiveRegistration = {
   id: string;
   createdAt: string;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
   type?: { name?: string | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
+
+function rollup(
+  rows: { label: string; amount: number; count: number }[],
+): { label: string; amount: number; count: number }[] {
+  const map = new Map<string, { label: string; amount: number; count: number }>();
+  for (const row of rows) {
+    const existing = map.get(row.label);
+    if (existing) {
+      existing.amount += row.amount;
+      existing.count += row.count;
+    } else {
+      map.set(row.label, { ...row });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.amount - a.amount);
+}
 
 export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   if (!hasCredentials()) return demoDashboard(eventId);
