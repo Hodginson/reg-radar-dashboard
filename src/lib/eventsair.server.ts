@@ -247,6 +247,9 @@ function demoDashboard(eventId: string): DashboardData {
     byLocation: [...demoLocationMap.entries()]
       .map(([location, count]) => ({ location, count }))
       .sort((a, b) => b.count - a.count),
+    byMembership: [...demoMembershipMap.entries()]
+      .map(([membership, count]) => ({ membership, count }))
+      .sort((a, b) => b.count - a.count),
     daily,
     recent,
   };
