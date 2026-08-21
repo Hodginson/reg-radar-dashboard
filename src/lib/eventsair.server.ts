@@ -345,9 +345,46 @@ function demoDashboard(eventId: string): DashboardData {
     const mem = membershipFromTicketName(t.type);
     demoMembershipMap.set(mem, (demoMembershipMap.get(mem) ?? 0) + t.count);
   }
+  const ticketItems = byType.map((t) => ({
+    label: t.type,
+    amount: t.count * 850,
+    count: t.count,
+  }));
+  const exhibitorItems = [
+    { label: "3x3 Booth", amount: 96000, count: 24 },
+    { label: "Premium Corner Booth", amount: 54000, count: 9 },
+    { label: "Shell Scheme", amount: 21000, count: 7 },
+  ];
+  const sponsorItems = [
+    { label: "Platinum Sponsor", amount: 60000, count: 2 },
+    { label: "Awards Dinner", amount: 32000, count: 2 },
+    { label: "Learning Centre", amount: 8800, count: 2 },
+  ];
+  const sum = (items: { amount: number }[]) => items.reduce((s, i) => s + i.amount, 0);
+  const countOf = (items: { count: number }[]) => items.reduce((s, i) => s + i.count, 0);
+  const streams: DashboardData["financials"]["streams"] = [
+    { stream: "Tickets", amount: sum(ticketItems), count: countOf(ticketItems), items: ticketItems },
+    {
+      stream: "Exhibitors",
+      amount: sum(exhibitorItems),
+      count: countOf(exhibitorItems),
+      items: exhibitorItems,
+    },
+    {
+      stream: "Sponsors",
+      amount: sum(sponsorItems),
+      count: countOf(sponsorItems),
+      items: sponsorItems,
+    },
+  ];
   return {
     demo: true,
     event,
+    financials: {
+      currency: "AUD",
+      total: streams.reduce((s, x) => s + x.amount, 0),
+      streams,
+    },
     totalRegistrations: total,
     last7Days: daily.slice(-7).reduce((s, d) => s + d.count, 0),
     registeredToday: daily[daily.length - 1]!.count,
