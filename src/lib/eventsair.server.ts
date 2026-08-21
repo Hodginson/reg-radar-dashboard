@@ -27,6 +27,16 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  financials: {
+    currency: string;
+    total: number;
+    streams: {
+      stream: "Tickets" | "Exhibitors" | "Sponsors";
+      amount: number;
+      count: number;
+      items: { label: string; amount: number; count: number }[];
+    }[];
+  };
   daily: { date: string; count: number }[];
   recent: { name: string; type: string; date: string }[];
 };
