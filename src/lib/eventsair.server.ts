@@ -230,9 +230,12 @@ function demoDashboard(eventId: string): DashboardData {
     date: daily[daily.length - 1 - Math.floor(i / 2)]!.date,
   }));
   const demoLocationMap = new Map<string, number>();
+  const demoMembershipMap = new Map<string, number>();
   for (const t of byType) {
     const loc = locationFromTicketName(t.type);
     demoLocationMap.set(loc, (demoLocationMap.get(loc) ?? 0) + t.count);
+    const mem = membershipFromTicketName(t.type);
+    demoMembershipMap.set(mem, (demoMembershipMap.get(mem) ?? 0) + t.count);
   }
   return {
     demo: true,
