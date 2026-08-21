@@ -304,6 +304,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const dailyMap = new Map<string, number>();
   const typeMap = new Map<string, number>();
   const locationMap = new Map<string, number>();
+  const membershipMap = new Map<string, number>();
   for (const r of regs) {
     const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
@@ -311,6 +312,8 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+    const mem = membershipFromTicketName(t);
+    membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
   // Anchor the 90-day window to the latest registration so historic events
