@@ -510,9 +510,12 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
   ]);
 
+  // The ACA symposium series is invoiced entirely in AUD even though some
+  // records carry an NZD currency code for the NZ legs.
+  const forceAud = /\baca\b|symposium/i.test(event.name ?? "");
   let currency = "AUD";
   const ticketRows = regs.map((r) => {
-    currency = r.fee?.currency?.code ?? currency;
+    if (!forceAud) currency = r.fee?.currency?.code ?? currency;
     return { label: r.type?.name ?? "Unspecified", amount: r.fee?.amount ?? 0, count: 1 };
   });
   const sponsorRows = sponsorships
