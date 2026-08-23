@@ -45,6 +45,14 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+function money(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function Stat({
   label,
   value,
@@ -270,6 +278,56 @@ function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mt-6 border-border/60">
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle className="text-base font-medium">Financials</CardTitle>
+                <span className="text-sm text-muted-foreground">
+                  Total{" "}
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {money(data.financials.total, data.financials.currency)}
+                  </span>
+                </span>
+              </CardHeader>
+              <CardContent className="grid gap-6 lg:grid-cols-3">
+                {data.financials.streams.map((s) => (
+                  <div key={s.stream} className="rounded-xl border border-border/60 p-4">
+                    <div className="flex items-baseline justify-between">
+                      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                        {s.stream}
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {s.count} {s.count === 1 ? "record" : "records"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                      {money(s.amount, data.financials.currency)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {Math.round((s.amount / Math.max(1, data.financials.total)) * 100)}% of revenue
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      {s.items.slice(0, 6).map((i) => (
+                        <div
+                          key={i.label}
+                          className="flex items-baseline justify-between gap-3 text-sm"
+                        >
+                          <span className="truncate text-muted-foreground" title={i.label}>
+                            {i.label}
+                          </span>
+                          <span className="tabular-nums text-foreground">
+                            {money(i.amount, data.financials.currency)}
+                          </span>
+                        </div>
+                      ))}
+                      {s.items.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No records</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           </>
         )}
       </div>
