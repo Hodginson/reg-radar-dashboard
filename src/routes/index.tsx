@@ -45,6 +45,14 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+function money(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function Stat({
   label,
   value,
