@@ -10,11 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CalendarDays, Users, TrendingUp, Clock } from "lucide-react";
+import { CalendarDays, Users, TrendingUp, Clock, RefreshCw } from "lucide-react";
 
 import { listEvents, getEventDashboard } from "@/lib/eventsair.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -115,6 +116,20 @@ function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             {data?.demo && <Badge variant="secondary">Demo data</Badge>}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                eventsQuery.refetch();
+                dashboardQuery.refetch();
+              }}
+              disabled={dashboardQuery.isFetching}
+            >
+              <RefreshCw
+                className={`size-4 ${dashboardQuery.isFetching ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
             <Select value={selectedId ?? ""} onValueChange={setEventId}>
               <SelectTrigger className="w-64">
                 <SelectValue placeholder="Choose an event" />
