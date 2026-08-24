@@ -130,7 +130,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              type { name }
+              type { name group { name } }
               contact { firstName lastName }
             }
             pageInfo { totalCount hasNextPage }
