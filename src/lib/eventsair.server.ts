@@ -490,15 +490,23 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   if (!hasCredentials()) return demoDashboard(eventId);
 
   const data = await gql<{
-    event: { id: string; name: string; startDate: string | null } | null;
+    event: {
+      id: string;
+      name: string;
+      startDate: string | null;
+      defaultCurrency?: { code?: string | null } | null;
+    } | null;
   }>(
     `query Event($eventId: ID!) {
-      event(id: $eventId) { id name startDate }
+      event(id: $eventId) { id name startDate defaultCurrency { code } }
     }`,
     { eventId },
   );
 
-  const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
+  const baseCurrency = data.event?.defaultCurrency?.code ?? "AUD";
+  const event: EventSummary = data.event
+    ? { id: data.event.id, name: data.event.name, startDate: data.event.startDate }
+    : { id: eventId, name: "Event", startDate: null };
   const regs = (await paginatedRegistrations(eventId)).filter(
     (r) => !isExcludedTicketType(r.type?.name ?? ""),
   );
@@ -515,7 +523,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
-    const mem = membershipFromTicketName(t);
+    // Registration group first, ticket-name wording only as a fallback.
+    const mem =
+      membershipFromGroupName(r.type?.group?.name ?? "") || membershipFromTicketName(t);
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
