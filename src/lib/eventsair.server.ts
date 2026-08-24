@@ -561,35 +561,32 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
   ]);
 
-  // The ACA symposium series is invoiced entirely in AUD even though some
-  // records carry an NZD currency code for the NZ legs.
-  const forceAud = /\baca\b|symposium/i.test(event.name ?? "");
-  let currency = "AUD";
-  const ticketRows = regs.map((r) => {
-    if (!forceAud) currency = r.fee?.currency?.code ?? currency;
-    return { label: r.type?.name ?? "Unspecified", amount: r.fee?.amount ?? 0, count: 1 };
-  });
+  // Records can be priced in several currencies (NZD for the NZ symposium
+  // legs); convert everything into the event's default currency.
+  const toBase = await currencyConverter(baseCurrency);
+  const currency = baseCurrency;
+  const ticketRows = regs.map((r) => ({
+    label: r.type?.name ?? "Unspecified",
+    amount: toBase(r.fee?.amount ?? 0, r.fee?.currency?.code),
+    count: 1,
+  }));
   const sponsorRows = sponsorships
     .filter((s) => !isCancelled(s.status))
     .map((s) => {
-      if (!forceAud) currency = s.fee?.currency?.code ?? currency;
       const quantity = s.quantity && s.quantity > 0 ? s.quantity : 1;
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: (s.fee?.amount ?? 0) * quantity,
+        amount: toBase(s.fee?.amount ?? 0, s.fee?.currency?.code) * quantity,
         count: quantity,
       };
     });
   const exhibitorRows = bookings
     .filter((b) => !isCancelled(b.status))
-    .map((b) => {
-      if (!forceAud) currency = b.fee?.currency?.code ?? currency;
-      return {
-        label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-        amount: b.fee?.amount ?? 0,
-        count: 1,
-      };
-    });
+    .map((b) => ({
+      label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
+      amount: toBase(b.fee?.amount ?? 0, b.fee?.currency?.code),
+      count: 1,
+    }));
 
   const total = (rows: { amount: number }[]) => rows.reduce((s, r) => s + r.amount, 0);
   const streams: DashboardData["financials"]["streams"] = [
