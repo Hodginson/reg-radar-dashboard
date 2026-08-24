@@ -425,9 +425,50 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  type?: { name?: string | null } | null;
+  type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
+
+/**
+ * Events can take money in several currencies (the ACA symposium series bills
+ * the NZ legs in NZD). Convert every amount into the event's default currency
+ * with live mid-market rates, cached per process.
+ */
+let ratesCache: { base: string; at: number; rates: Record<string, number> } | null = null;
+
+async function currencyConverter(base: string) {
+  const upperBase = (base || "AUD").toUpperCase();
+  const fresh = ratesCache && ratesCache.base === upperBase && Date.now() - ratesCache.at < 6 * 60 * 60 * 1000;
+  if (!fresh) {
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${upperBase}`);
+      const json = (await res.json()) as { rates?: Record<string, number> };
+      ratesCache = { base: upperBase, at: Date.now(), rates: json.rates ?? {} };
+    } catch {
+      ratesCache = { base: upperBase, at: Date.now(), rates: {} };
+    }
+  }
+  const rates = ratesCache?.rates ?? {};
+  return (amount: number, code?: string | null) => {
+    const from = (code ?? upperBase).toUpperCase();
+    if (!amount || from === upperBase) return amount ?? 0;
+    // rates are base -> from, so divide to get back into the base currency.
+    const rate = rates[from];
+    return rate ? amount / rate : amount;
+  };
+}
+
+/**
+ * Registration groups are the source of truth for membership
+ * ("Member Registrations" / "Non-Member Registrations").
+ */
+export function membershipFromGroupName(name: string): string {
+  const lower = name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
+  if (/\bnon\s?members?\b/.test(lower)) return "Non-member";
+  if (/\bmembers?\b/.test(lower)) return "Member";
+  if (/\bstudents?\b/.test(lower)) return "Student";
+  return "";
+}
 
 function rollup(
   rows: { label: string; amount: number; count: number }[],
