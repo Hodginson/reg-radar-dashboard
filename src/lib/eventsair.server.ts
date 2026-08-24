@@ -130,7 +130,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              type { name }
+              type { name group { name } }
               contact { firstName lastName }
             }
             pageInfo { totalCount hasNextPage }
@@ -425,9 +425,50 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  type?: { name?: string | null } | null;
+  type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
+
+/**
+ * Events can take money in several currencies (the ACA symposium series bills
+ * the NZ legs in NZD). Convert every amount into the event's default currency
+ * with live mid-market rates, cached per process.
+ */
+let ratesCache: { base: string; at: number; rates: Record<string, number> } | null = null;
+
+async function currencyConverter(base: string) {
+  const upperBase = (base || "AUD").toUpperCase();
+  const fresh = ratesCache && ratesCache.base === upperBase && Date.now() - ratesCache.at < 6 * 60 * 60 * 1000;
+  if (!fresh) {
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${upperBase}`);
+      const json = (await res.json()) as { rates?: Record<string, number> };
+      ratesCache = { base: upperBase, at: Date.now(), rates: json.rates ?? {} };
+    } catch {
+      ratesCache = { base: upperBase, at: Date.now(), rates: {} };
+    }
+  }
+  const rates = ratesCache?.rates ?? {};
+  return (amount: number, code?: string | null) => {
+    const from = (code ?? upperBase).toUpperCase();
+    if (!amount || from === upperBase) return amount ?? 0;
+    // rates are base -> from, so divide to get back into the base currency.
+    const rate = rates[from];
+    return rate ? amount / rate : amount;
+  };
+}
+
+/**
+ * Registration groups are the source of truth for membership
+ * ("Member Registrations" / "Non-Member Registrations").
+ */
+export function membershipFromGroupName(name: string): string {
+  const lower = name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
+  if (/\bnon\s?members?\b/.test(lower)) return "Non-member";
+  if (/\bmembers?\b/.test(lower)) return "Member";
+  if (/\bstudents?\b/.test(lower)) return "Student";
+  return "";
+}
 
 function rollup(
   rows: { label: string; amount: number; count: number }[],
@@ -449,15 +490,23 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   if (!hasCredentials()) return demoDashboard(eventId);
 
   const data = await gql<{
-    event: { id: string; name: string; startDate: string | null } | null;
+    event: {
+      id: string;
+      name: string;
+      startDate: string | null;
+      defaultCurrency?: { code?: string | null } | null;
+    } | null;
   }>(
     `query Event($eventId: ID!) {
-      event(id: $eventId) { id name startDate }
+      event(id: $eventId) { id name startDate defaultCurrency { code } }
     }`,
     { eventId },
   );
 
-  const event: EventSummary = data.event ?? { id: eventId, name: "Event", startDate: null };
+  const baseCurrency = data.event?.defaultCurrency?.code ?? "AUD";
+  const event: EventSummary = data.event
+    ? { id: data.event.id, name: data.event.name, startDate: data.event.startDate }
+    : { id: eventId, name: "Event", startDate: null };
   const regs = (await paginatedRegistrations(eventId)).filter(
     (r) => !isExcludedTicketType(r.type?.name ?? ""),
   );
@@ -474,7 +523,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
-    const mem = membershipFromTicketName(t);
+    // Registration group first, ticket-name wording only as a fallback.
+    const mem =
+      membershipFromGroupName(r.type?.group?.name ?? "") || membershipFromTicketName(t);
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
@@ -510,35 +561,32 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
   ]);
 
-  // The ACA symposium series is invoiced entirely in AUD even though some
-  // records carry an NZD currency code for the NZ legs.
-  const forceAud = /\baca\b|symposium/i.test(event.name ?? "");
-  let currency = "AUD";
-  const ticketRows = regs.map((r) => {
-    if (!forceAud) currency = r.fee?.currency?.code ?? currency;
-    return { label: r.type?.name ?? "Unspecified", amount: r.fee?.amount ?? 0, count: 1 };
-  });
+  // Records can be priced in several currencies (NZD for the NZ symposium
+  // legs); convert everything into the event's default currency.
+  const toBase = await currencyConverter(baseCurrency);
+  const currency = baseCurrency;
+  const ticketRows = regs.map((r) => ({
+    label: r.type?.name ?? "Unspecified",
+    amount: toBase(r.fee?.amount ?? 0, r.fee?.currency?.code),
+    count: 1,
+  }));
   const sponsorRows = sponsorships
     .filter((s) => !isCancelled(s.status))
     .map((s) => {
-      if (!forceAud) currency = s.fee?.currency?.code ?? currency;
       const quantity = s.quantity && s.quantity > 0 ? s.quantity : 1;
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: (s.fee?.amount ?? 0) * quantity,
+        amount: toBase(s.fee?.amount ?? 0, s.fee?.currency?.code) * quantity,
         count: quantity,
       };
     });
   const exhibitorRows = bookings
     .filter((b) => !isCancelled(b.status))
-    .map((b) => {
-      if (!forceAud) currency = b.fee?.currency?.code ?? currency;
-      return {
-        label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-        amount: b.fee?.amount ?? 0,
-        count: 1,
-      };
-    });
+    .map((b) => ({
+      label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
+      amount: toBase(b.fee?.amount ?? 0, b.fee?.currency?.code),
+      count: 1,
+    }));
 
   const total = (rows: { amount: number }[]) => rows.reduce((s, r) => s + r.amount, 0);
   const streams: DashboardData["financials"]["streams"] = [
