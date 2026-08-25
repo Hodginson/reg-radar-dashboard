@@ -437,24 +437,19 @@ type LiveRegistration = {
 
 /**
  * Events can take money in several currencies (the ACA symposium series bills
- * the NZ legs in NZD). Convert every amount into the event's default currency
- * with live mid-market rates, cached per process.
+ * the NZ legs in NZD). Use the same fixed exchange rates EventsAir has
+ * configured on the event so totals reconcile with their reports.
+ * Rates are expressed as: 1 unit of base -> N units of the quoted currency.
  */
-let ratesCache: { base: string; at: number; rates: Record<string, number> } | null = null;
+const FIXED_RATES: Record<string, Record<string, number>> = {
+  AUD: {
+    NZD: 1.2144,
+  },
+};
 
 async function currencyConverter(base: string) {
   const upperBase = (base || "AUD").toUpperCase();
-  const fresh = ratesCache && ratesCache.base === upperBase && Date.now() - ratesCache.at < 6 * 60 * 60 * 1000;
-  if (!fresh) {
-    try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${upperBase}`);
-      const json = (await res.json()) as { rates?: Record<string, number> };
-      ratesCache = { base: upperBase, at: Date.now(), rates: json.rates ?? {} };
-    } catch {
-      ratesCache = { base: upperBase, at: Date.now(), rates: {} };
-    }
-  }
-  const rates = ratesCache?.rates ?? {};
+  const rates = FIXED_RATES[upperBase] ?? {};
   return (amount: number, code?: string | null) => {
     const from = (code ?? upperBase).toUpperCase();
     if (!amount || from === upperBase) return amount ?? 0;
@@ -463,6 +458,7 @@ async function currencyConverter(base: string) {
     return rate ? amount / rate : amount;
   };
 }
+
 
 /**
  * Registration groups are the source of truth for membership
