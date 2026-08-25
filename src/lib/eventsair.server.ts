@@ -130,6 +130,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
+              paymentDetails { totalChargeAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -153,6 +154,7 @@ type LiveSponsorship = {
   quantity?: number | null;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null } | null;
   package?: { name?: string | null } | null;
   sponsor?: { organizationName?: string | null } | null;
 };
@@ -161,6 +163,7 @@ type LiveExhibitionBooking = {
   id: string;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null } | null;
   standType?: { name?: string | null } | null;
   exhibitor?: { organizationName?: string | null } | null;
 };
@@ -186,6 +189,7 @@ async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]
               quantity
               status
               fee { amount currency { code } }
+              paymentDetails { totalChargeAmount }
               package { name }
               sponsor { organizationName }
             }
@@ -224,6 +228,7 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
               id
               status
               fee { amount currency { code } }
+              paymentDetails { totalChargeAmount }
               standType { name }
               exhibitor { organizationName }
             }
@@ -425,6 +430,7 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
@@ -463,11 +469,11 @@ async function currencyConverter(base: string) {
  * ("Member Registrations" / "Non-Member Registrations").
  */
 export function membershipFromGroupName(name: string): string {
-  const lower = name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
-  if (/\bnon\s?members?\b/.test(lower)) return "Non-member";
-  if (/\bmembers?\b/.test(lower)) return "Member";
-  if (/\bstudents?\b/.test(lower)) return "Student";
-  return "";
+  const normalized = name.trim().toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ");
+  if (normalized === "member registrations") return "Member Registrations";
+  if (normalized === "non member registrations") return "Non-Member Registrations";
+  if (normalized === "social events only") return "Social Events only";
+  return "Unspecified";
 }
 
 function rollup(
@@ -523,9 +529,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
-    // Registration group first, ticket-name wording only as a fallback.
-    const mem =
-      membershipFromGroupName(r.type?.group?.name ?? "") || membershipFromTicketName(t);
+    const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
@@ -565,26 +569,27 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   // legs); convert everything into the event's default currency.
   const toBase = await currencyConverter(baseCurrency);
   const currency = baseCurrency;
+  // Total charge is EventsAir's final amount after discounts, adjustments,
+  // tax and cancellations; fee is only the catalogue price.
   const ticketRows = regs.map((r) => ({
     label: r.type?.name ?? "Unspecified",
-    amount: toBase(r.fee?.amount ?? 0, r.fee?.currency?.code),
+    amount: toBase(r.paymentDetails?.totalChargeAmount ?? 0, r.fee?.currency?.code),
     count: 1,
   }));
   const sponsorRows = sponsorships
     .filter((s) => !isCancelled(s.status))
     .map((s) => {
-      const quantity = s.quantity && s.quantity > 0 ? s.quantity : 1;
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: toBase(s.fee?.amount ?? 0, s.fee?.currency?.code) * quantity,
-        count: quantity,
+        amount: toBase(s.paymentDetails?.totalChargeAmount ?? 0, s.fee?.currency?.code),
+        count: 1,
       };
     });
   const exhibitorRows = bookings
     .filter((b) => !isCancelled(b.status))
     .map((b) => ({
       label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-      amount: toBase(b.fee?.amount ?? 0, b.fee?.currency?.code),
+      amount: toBase(b.paymentDetails?.totalChargeAmount ?? 0, b.fee?.currency?.code),
       count: 1,
     }));
 
