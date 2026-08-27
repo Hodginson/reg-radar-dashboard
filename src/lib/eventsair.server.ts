@@ -130,7 +130,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount }
+              paymentDetails { totalChargeAmount paymentStatus }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -247,8 +247,26 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
   return all;
 }
 
-const isCancelled = (status?: string | null) =>
-  (status ?? "").toUpperCase().startsWith("CANCEL");
+/**
+ * Financials only count confirmed records. Sponsorships and exhibition
+ * bookings carry an explicit status (RESERVED / CONFIRMED / CANCELATION);
+ * registrations expose it via paymentDetails.paymentStatus, where cancelled
+ * and waitlisted (reserved) records have their own enum values.
+ */
+const isConfirmedStatus = (status?: string | null) =>
+  (status ?? "").toUpperCase() === "CONFIRMED";
+
+const NON_CONFIRMED_PAYMENT_STATUSES = new Set([
+  "CANCELED",
+  "CANCELED_CHARGE_TO_ANOTHER_CONTACT",
+  "CANCELED_GROUP_INVENTORY",
+  "WAITLIST_PURCHASE",
+  "WAITLIST_NO_PAYMENT_REQUIRED",
+  "NOT_ATTENDING",
+]);
+
+const isConfirmedRegistration = (r: LiveRegistration) =>
+  !NON_CONFIRMED_PAYMENT_STATUSES.has(r.paymentDetails?.paymentStatus ?? "");
 
 /* ---------------------------------- demo ---------------------------------- */
 
