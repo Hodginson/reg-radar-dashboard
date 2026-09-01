@@ -448,7 +448,7 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
@@ -527,9 +527,10 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const event: EventSummary = data.event
     ? { id: data.event.id, name: data.event.name, startDate: data.event.startDate }
     : { id: eventId, name: "Event", startDate: null };
-  const regs = (await paginatedRegistrations(eventId)).filter(
-    (r) => !isExcludedTicketType(r.type?.name ?? ""),
-  );
+  const allRegs = await paginatedRegistrations(eventId);
+  // Registration COUNTS exclude the complimentary dual-city bundle, but those
+  // tickets still carry real charges, so financials use the full set.
+  const regs = allRegs.filter((r) => !isExcludedTicketType(r.type?.name ?? ""));
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
@@ -585,13 +586,13 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const currency = baseCurrency;
   // Total charge is EventsAir's final amount after discounts, adjustments,
   // tax and cancellations; fee is only the catalogue price.
-  const ticketRows = regs.map((r) => ({
+  const ticketRows = allRegs.filter(isConfirmedRegistration).map((r) => ({
     label: r.type?.name ?? "Unspecified",
     amount: toBase(r.paymentDetails?.totalChargeAmount ?? 0, r.fee?.currency?.code),
     count: 1,
   }));
   const sponsorRows = sponsorships
-    .filter((s) => !isCancelled(s.status))
+    .filter((s) => isConfirmedStatus(s.status))
     .map((s) => {
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
@@ -600,7 +601,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       };
     });
   const exhibitorRows = bookings
-    .filter((b) => !isCancelled(b.status))
+    .filter((b) => isConfirmedStatus(b.status))
     .map((b) => ({
       label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
       amount: toBase(b.paymentDetails?.totalChargeAmount ?? 0, b.fee?.currency?.code),
