@@ -613,6 +613,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
+  const dailyLocationMap = new Map<string, Map<string, number>>();
   const typeMap = new Map<string, number>();
   const locationMap = new Map<string, number>();
   const membershipMap = new Map<string, number>();
@@ -623,24 +624,35 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+    const perDay = dailyLocationMap.get(key) ?? new Map<string, number>();
+    perDay.set(loc, (perDay.get(loc) ?? 0) + 1);
+    dailyLocationMap.set(key, perDay);
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
-  // Anchor the 90-day window to the latest registration so historic events
+  const locations = [...locationMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([loc]) => loc);
+
+  // Anchor the trend window to the latest registration so historic events
   // still show a meaningful trend instead of a flat line of zeroes.
   const latestReg = regs.reduce<number>(
     (max, r) => Math.max(max, +new Date(r.createdAt)),
     0,
   );
   const anchor = latestReg && latestReg < Date.now() ? new Date(latestReg) : new Date();
-  const daily: { date: string; count: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  const daily: DailyPoint[] = [];
+  for (let i = 239; i >= 0; i--) {
     const d = new Date(anchor);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    daily.push({ date: key, count: dailyMap.get(key) ?? 0 });
+    const perDay = dailyLocationMap.get(key);
+    const point: DailyPoint = { date: key, count: dailyMap.get(key) ?? 0 };
+    for (const loc of locations) point[loc] = perDay?.get(loc) ?? 0;
+    daily.push(point);
   }
+
 
   const today = new Date().toISOString().slice(0, 10);
   const recent = [...regs]
