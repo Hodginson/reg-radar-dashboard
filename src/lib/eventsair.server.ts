@@ -406,13 +406,23 @@ export function isExcludedTicketType(name: string): boolean {
 function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
   const seedBase = event.id === "demo-2" ? 3 : 7;
-  const daily: { date: string; count: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  const demoLocations = ["Melbourne", "Auckland", "Christchurch"];
+  const daily: DailyPoint[] = [];
+  for (let i = 239; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (90 - i) * 0.8;
-    daily.push({ date: d.toISOString().slice(0, 10), count: Math.max(1, Math.round(10 + wave)) });
+    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (240 - i) * 0.3;
+    const count = Math.max(1, Math.round(10 + wave));
+    const point: DailyPoint = { date: d.toISOString().slice(0, 10), count };
+    let left = count;
+    demoLocations.forEach((loc, idx) => {
+      const share = idx === demoLocations.length - 1 ? left : Math.round(count * [0.5, 0.3][idx]!);
+      point[loc] = share;
+      left -= share;
+    });
+    daily.push(point);
   }
+
   const total = daily.reduce((s, d) => s + d.count, 0);
   const byType = DEMO_TYPES.map((type, i) => ({
     type,
