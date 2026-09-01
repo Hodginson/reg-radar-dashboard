@@ -18,6 +18,8 @@ const tokenUrl = (tenantId: string) =>
 
 export type EventSummary = { id: string; name: string; startDate: string | null };
 
+export type DailyPoint = { date: string; count: number } & Record<string, string | number>;
+
 export type DashboardData = {
   demo: boolean;
   event: EventSummary;
@@ -27,6 +29,14 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  socialEvents: {
+    name: string;
+    tickets: number;
+    records: number;
+    amount: number;
+    location: string;
+  }[];
+  locations: string[];
   financials: {
     currency: string;
     total: number;
@@ -37,7 +47,7 @@ export type DashboardData = {
       items: { label: string; amount: number; count: number }[];
     }[];
   };
-  daily: { date: string; count: number }[];
+  daily: DailyPoint[];
   recent: { name: string; type: string; date: string }[];
 };
 
@@ -247,6 +257,59 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
   return all;
 }
 
+type LiveFunctionRegistration = {
+  id: string;
+  createdAt: string;
+  tickets?: number | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  function?: { name?: string | null } | null;
+};
+
+/** Social event (function) tickets, e.g. dinners and cocktail receptions. */
+async function paginatedFunctionRegistrations(
+  eventId: string,
+): Promise<LiveFunctionRegistration[]> {
+  const all: LiveFunctionRegistration[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        functionRegistrationsPaged: {
+          items: LiveFunctionRegistration[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Functions($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          functionRegistrationsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              createdAt
+              tickets
+              fee { amount currency { code } }
+              paymentDetails { totalChargeAmount paymentStatus }
+              function { name }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.functionRegistrationsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+
+
 /**
  * Financials only count confirmed records. Sponsorships and exhibition
  * bookings carry an explicit status (RESERVED / CONFIRMED / CANCELATION);
@@ -343,13 +406,23 @@ export function isExcludedTicketType(name: string): boolean {
 function demoDashboard(eventId: string): DashboardData {
   const event = DEMO_EVENTS.find((e) => e.id === eventId) ?? DEMO_EVENTS[0]!;
   const seedBase = event.id === "demo-2" ? 3 : 7;
-  const daily: { date: string; count: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  const demoLocations = ["Melbourne", "Auckland", "Christchurch"];
+  const daily: DailyPoint[] = [];
+  for (let i = 239; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (90 - i) * 0.8;
-    daily.push({ date: d.toISOString().slice(0, 10), count: Math.max(1, Math.round(10 + wave)) });
+    const wave = Math.sin((i + seedBase) / 3.5) * 6 + (240 - i) * 0.3;
+    const count = Math.max(1, Math.round(10 + wave));
+    const point: DailyPoint = { date: d.toISOString().slice(0, 10), count };
+    let left = count;
+    demoLocations.forEach((loc, idx) => {
+      const share = idx === demoLocations.length - 1 ? left : Math.round(count * [0.5, 0.3][idx]!);
+      point[loc] = share;
+      left -= share;
+    });
+    daily.push(point);
   }
+
   const total = daily.reduce((s, d) => s + d.count, 0);
   const byType = DEMO_TYPES.map((type, i) => ({
     type,
@@ -418,6 +491,12 @@ function demoDashboard(eventId: string): DashboardData {
     byMembership: [...demoMembershipMap.entries()]
       .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
+    socialEvents: [
+      { name: "Melbourne Gala Dinner", tickets: 180, records: 165, amount: 27000, location: "Melbourne" },
+      { name: "Auckland Cocktail Reception", tickets: 96, records: 92, amount: 9600, location: "Auckland" },
+      { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040, location: "Christchurch" },
+    ],
+    locations: demoLocations,
     daily,
     recent,
   };
@@ -534,6 +613,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
+  const dailyLocationMap = new Map<string, Map<string, number>>();
   const typeMap = new Map<string, number>();
   const locationMap = new Map<string, number>();
   const membershipMap = new Map<string, number>();
@@ -544,24 +624,35 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
     const loc = locationFromTicketName(t);
     locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+    const perDay = dailyLocationMap.get(key) ?? new Map<string, number>();
+    perDay.set(loc, (perDay.get(loc) ?? 0) + 1);
+    dailyLocationMap.set(key, perDay);
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
 
-  // Anchor the 90-day window to the latest registration so historic events
+  const locations = [...locationMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([loc]) => loc);
+
+  // Anchor the trend window to the latest registration so historic events
   // still show a meaningful trend instead of a flat line of zeroes.
   const latestReg = regs.reduce<number>(
     (max, r) => Math.max(max, +new Date(r.createdAt)),
     0,
   );
   const anchor = latestReg && latestReg < Date.now() ? new Date(latestReg) : new Date();
-  const daily: { date: string; count: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  const daily: DailyPoint[] = [];
+  for (let i = 239; i >= 0; i--) {
     const d = new Date(anchor);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    daily.push({ date: key, count: dailyMap.get(key) ?? 0 });
+    const perDay = dailyLocationMap.get(key);
+    const point: DailyPoint = { date: key, count: dailyMap.get(key) ?? 0 };
+    for (const loc of locations) point[loc] = perDay?.get(loc) ?? 0;
+    daily.push(point);
   }
+
 
   const today = new Date().toISOString().slice(0, 10);
   const recent = [...regs]
@@ -575,9 +666,10 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   // Sponsorship and exhibition revenue live on separate records; a failure
   // there shouldn't take down the registration dashboard.
-  const [sponsorships, bookings] = await Promise.all([
+  const [sponsorships, bookings, functionRegs] = await Promise.all([
     paginatedSponsorships(eventId).catch(() => [] as LiveSponsorship[]),
     paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
+    paginatedFunctionRegistrations(eventId).catch(() => [] as LiveFunctionRegistration[]),
   ]);
 
   // Records can be priced in several currencies (NZD for the NZ symposium
