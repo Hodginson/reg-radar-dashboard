@@ -491,6 +491,12 @@ function demoDashboard(eventId: string): DashboardData {
     byMembership: [...demoMembershipMap.entries()]
       .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
+    socialEvents: [
+      { name: "Melbourne Gala Dinner", tickets: 180, records: 165, amount: 27000, location: "Melbourne" },
+      { name: "Auckland Cocktail Reception", tickets: 96, records: 92, amount: 9600, location: "Auckland" },
+      { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040, location: "Christchurch" },
+    ],
+    locations: demoLocations,
     daily,
     recent,
   };
