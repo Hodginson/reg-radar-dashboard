@@ -18,6 +18,8 @@ const tokenUrl = (tenantId: string) =>
 
 export type EventSummary = { id: string; name: string; startDate: string | null };
 
+export type DailyPoint = { date: string; count: number } & Record<string, string | number>;
+
 export type DashboardData = {
   demo: boolean;
   event: EventSummary;
@@ -27,6 +29,14 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  socialEvents: {
+    name: string;
+    tickets: number;
+    records: number;
+    amount: number;
+    location: string;
+  }[];
+  locations: string[];
   financials: {
     currency: string;
     total: number;
@@ -37,7 +47,7 @@ export type DashboardData = {
       items: { label: string; amount: number; count: number }[];
     }[];
   };
-  daily: { date: string; count: number }[];
+  daily: DailyPoint[];
   recent: { name: string; type: string; date: string }[];
 };
 
