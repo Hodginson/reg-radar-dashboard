@@ -257,6 +257,59 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
   return all;
 }
 
+type LiveFunctionRegistration = {
+  id: string;
+  createdAt: string;
+  tickets?: number | null;
+  fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  function?: { name?: string | null } | null;
+};
+
+/** Social event (function) tickets, e.g. dinners and cocktail receptions. */
+async function paginatedFunctionRegistrations(
+  eventId: string,
+): Promise<LiveFunctionRegistration[]> {
+  const all: LiveFunctionRegistration[] = [];
+  let offset = 0;
+  const limit = 200;
+  while (true) {
+    const data = await gql<{
+      event: {
+        functionRegistrationsPaged: {
+          items: LiveFunctionRegistration[];
+          pageInfo: { hasNextPage: boolean };
+        };
+      } | null;
+    }>(
+      `query Functions($eventId: ID!, $offset: NonNegativeInt!, $limit: PaginationLimit!) {
+        event(id: $eventId) {
+          functionRegistrationsPaged(filterInput: {}, offset: $offset, limit: $limit) {
+            items {
+              id
+              createdAt
+              tickets
+              fee { amount currency { code } }
+              paymentDetails { totalChargeAmount paymentStatus }
+              function { name }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+      }`,
+      { eventId, offset, limit },
+    );
+    const page = data.event?.functionRegistrationsPaged;
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.pageInfo.hasNextPage) break;
+    offset += limit;
+  }
+  return all;
+}
+
+
+
 /**
  * Financials only count confirmed records. Sponsorships and exhibition
  * bookings carry an explicit status (RESERVED / CONFIRMED / CANCELATION);
