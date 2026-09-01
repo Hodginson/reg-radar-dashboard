@@ -586,13 +586,13 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const currency = baseCurrency;
   // Total charge is EventsAir's final amount after discounts, adjustments,
   // tax and cancellations; fee is only the catalogue price.
-  const ticketRows = regs.map((r) => ({
+  const ticketRows = allRegs.filter(isConfirmedRegistration).map((r) => ({
     label: r.type?.name ?? "Unspecified",
     amount: toBase(r.paymentDetails?.totalChargeAmount ?? 0, r.fee?.currency?.code),
     count: 1,
   }));
   const sponsorRows = sponsorships
-    .filter((s) => !isCancelled(s.status))
+    .filter((s) => isConfirmedStatus(s.status))
     .map((s) => {
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
@@ -601,7 +601,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       };
     });
   const exhibitorRows = bookings
-    .filter((b) => !isCancelled(b.status))
+    .filter((b) => isConfirmedStatus(b.status))
     .map((b) => ({
       label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
       amount: toBase(b.paymentDetails?.totalChargeAmount ?? 0, b.fee?.currency?.code),
