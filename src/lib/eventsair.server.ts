@@ -666,9 +666,10 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   // Sponsorship and exhibition revenue live on separate records; a failure
   // there shouldn't take down the registration dashboard.
-  const [sponsorships, bookings] = await Promise.all([
+  const [sponsorships, bookings, functionRegs] = await Promise.all([
     paginatedSponsorships(eventId).catch(() => [] as LiveSponsorship[]),
     paginatedExhibitionBookings(eventId).catch(() => [] as LiveExhibitionBooking[]),
+    paginatedFunctionRegistrations(eventId).catch(() => [] as LiveFunctionRegistration[]),
   ]);
 
   // Records can be priced in several currencies (NZD for the NZ symposium
