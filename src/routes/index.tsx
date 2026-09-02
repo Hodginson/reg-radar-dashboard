@@ -100,6 +100,17 @@ function Dashboard() {
   const maxLocation = Math.max(1, ...(data?.byLocation.map((l) => l.count) ?? [1]));
   const maxMembership = Math.max(1, ...(data?.byMembership.map((m) => m.count) ?? [1]));
 
+  const [days, setDays] = useState(90);
+  const [hiddenCities, setHiddenCities] = useState<string[]>([]);
+  const cities = data?.locations ?? [];
+  const chartData = (data?.daily ?? []).slice(-days);
+  const cityColor = (i: number) => `var(--chart-${(i % 4) + 2})`;
+  const toggleCity = (city: string) =>
+    setHiddenCities((prev) =>
+      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city],
+    );
+
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-6 py-10">
@@ -171,14 +182,53 @@ function Dashboard() {
             </section>
 
             <Card className="mt-6 border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-medium">
-                  Daily registrations · 90 days to {data.daily[data.daily.length - 1]?.date}
-                </CardTitle>
+              <CardHeader className="gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <CardTitle className="text-base font-medium">
+                    Daily registrations · {days} days to {chartData[chartData.length - 1]?.date}
+                  </CardTitle>
+                  <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[30, 60, 90, 120, 150, 180, 210, 240].map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {d} days
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {cities.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {cities.map((city, i) => {
+                      const off = hiddenCities.includes(city);
+                      return (
+                        <button
+                          key={city}
+                          type="button"
+                          onClick={() => toggleCity(city)}
+                          className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                            off
+                              ? "border-border/60 text-muted-foreground opacity-60"
+                              : "border-border text-foreground"
+                          }`}
+                        >
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ background: off ? "var(--color-muted)" : cityColor(i) }}
+                          />
+                          {city}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.daily} margin={{ left: -20, right: 8, top: 8 }}>
+                  <AreaChart data={chartData} margin={{ left: -20, right: 8, top: 8 }}>
                     <defs>
                       <linearGradient id="regFill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.5} />
@@ -211,15 +261,31 @@ function Dashboard() {
                     <Area
                       type="monotone"
                       dataKey="count"
-                      name="Registrations"
+                      name="All registrations"
                       stroke="var(--color-primary)"
                       strokeWidth={2}
                       fill="url(#regFill)"
                     />
+                    {cities
+                      .map((city, i) => ({ city, color: cityColor(i) }))
+                      .filter(({ city }) => !hiddenCities.includes(city))
+                      .map(({ city, color }) => (
+                        <Area
+                          key={city}
+                          type="monotone"
+                          dataKey={city}
+                          name={city}
+                          stroke={color}
+                          strokeWidth={2}
+                          fill="none"
+                          dot={false}
+                        />
+                      ))}
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
 
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <Card className="border-border/60">
@@ -293,6 +359,56 @@ function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mt-6 border-border/60">
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle className="text-base font-medium">Social event tickets</CardTitle>
+                <span className="text-sm text-muted-foreground">
+                  {data.socialEvents.reduce((s, f) => s + f.tickets, 0)} tickets
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/60 text-left text-xs uppercase tracking-widest text-muted-foreground">
+                        <th className="pb-2 font-medium">Social event</th>
+                        <th className="pb-2 font-medium">Location</th>
+                        <th className="pb-2 text-right font-medium">Tickets</th>
+                        <th className="pb-2 text-right font-medium">Bookings</th>
+                        <th className="pb-2 text-right font-medium">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.socialEvents.map((f) => (
+                        <tr key={f.name} className="border-b border-border/40 last:border-0">
+                          <td className="py-2 text-foreground">{f.name}</td>
+                          <td className="py-2 text-muted-foreground">{f.location}</td>
+                          <td className="py-2 text-right tabular-nums text-foreground">
+                            {f.tickets}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-muted-foreground">
+                            {f.records}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-foreground">
+                            {money(f.amount, data.financials.currency)}
+                          </td>
+                        </tr>
+                      ))}
+                      {data.socialEvents.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-4 text-muted-foreground">
+                            No social event tickets
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+
 
             <Card className="mt-6 border-border/60">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
