@@ -700,6 +700,21 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       count: 1,
     }));
 
+  // Social event (function) tickets: dinners, receptions etc.
+  const socialMap = new Map<string, { tickets: number; records: number; amount: number }>();
+  for (const f of functionRegs) {
+    if (NON_CONFIRMED_PAYMENT_STATUSES.has(f.paymentDetails?.paymentStatus ?? "")) continue;
+    const name = f.function?.name ?? "Unspecified";
+    const row = socialMap.get(name) ?? { tickets: 0, records: 0, amount: 0 };
+    row.tickets += f.tickets ?? 1;
+    row.records += 1;
+    row.amount += toBase(f.paymentDetails?.totalChargeAmount ?? 0, f.fee?.currency?.code);
+    socialMap.set(name, row);
+  }
+  const socialEvents = [...socialMap.entries()]
+    .map(([name, row]) => ({ name, ...row, location: locationFromTicketName(name) }))
+    .sort((a, b) => b.tickets - a.tickets);
+
   const total = (rows: { amount: number }[]) => rows.reduce((s, r) => s + r.amount, 0);
   const streams: DashboardData["financials"]["streams"] = [
     {
@@ -742,6 +757,8 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     byMembership: [...membershipMap.entries()]
       .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
+    socialEvents,
+    locations,
     daily,
     recent,
   };
