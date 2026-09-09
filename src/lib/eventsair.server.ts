@@ -140,7 +140,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -164,7 +164,7 @@ type LiveSponsorship = {
   quantity?: number | null;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; taxAmount?: number | null } | null;
   package?: { name?: string | null } | null;
   sponsor?: { organizationName?: string | null } | null;
 };
@@ -173,7 +173,7 @@ type LiveExhibitionBooking = {
   id: string;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; taxAmount?: number | null } | null;
   standType?: { name?: string | null } | null;
   exhibitor?: { organizationName?: string | null } | null;
 };
@@ -199,7 +199,7 @@ async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]
               quantity
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount totalTaxAmount }
+              paymentDetails { totalChargeAmount taxAmount }
               package { name }
               sponsor { organizationName }
             }
@@ -238,7 +238,7 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
               id
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount totalTaxAmount }
+              paymentDetails { totalChargeAmount taxAmount }
               standType { name }
               exhibitor { organizationName }
             }
@@ -264,7 +264,7 @@ type LiveFunctionRegistration = {
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
   paymentDetails?: {
     totalChargeAmount?: number | null;
-    totalTaxAmount?: number | null;
+    taxAmount?: number | null;
     paymentStatus?: string | null;
   } | null;
   function?: { name?: string | null } | null;
@@ -294,7 +294,7 @@ async function paginatedFunctionRegistrations(
               createdAt
               tickets
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus }
               function { name }
             }
             pageInfo { hasNextPage }
@@ -537,7 +537,7 @@ type LiveRegistration = {
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
   paymentDetails?: {
     totalChargeAmount?: number | null;
-    totalTaxAmount?: number | null;
+    taxAmount?: number | null;
     paymentStatus?: string | null;
   } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
@@ -722,11 +722,11 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   // shown ex GST: strip the reported tax amount (or the currency's standard
   // GST rate when no tax amount is reported).
   const exGstAmount = (
-    pd: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null | undefined,
+    pd: { totalChargeAmount?: number | null; taxAmount?: number | null } | null | undefined,
     code?: string | null,
   ) => {
     const charge = toBase(pd?.totalChargeAmount ?? 0, code);
-    const tax = pd?.totalTaxAmount != null ? toBase(pd.totalTaxAmount, code) : null;
+    const tax = pd?.taxAmount != null ? toBase(pd.taxAmount, code) : null;
     return exGst(charge, tax, code);
   };
 
