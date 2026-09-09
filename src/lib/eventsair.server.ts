@@ -714,10 +714,21 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const toBase = await currencyConverter(baseCurrency);
   const currency = baseCurrency;
   // Total charge is EventsAir's final amount after discounts, adjustments,
-  // tax and cancellations; fee is only the catalogue price.
+  // tax and cancellations; fee is only the catalogue price. Financials are
+  // shown ex GST: strip the reported tax amount (or the currency's standard
+  // GST rate when no tax amount is reported).
+  const exGstAmount = (
+    pd: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null | undefined,
+    code?: string | null,
+  ) => {
+    const charge = toBase(pd?.totalChargeAmount ?? 0, code);
+    const tax = pd?.totalTaxAmount != null ? toBase(pd.totalTaxAmount, code) : null;
+    return exGst(charge, tax, code);
+  };
+
   const ticketRows = allRegs.filter(isConfirmedRegistration).map((r) => ({
     label: r.type?.name ?? "Unspecified",
-    amount: toBase(r.paymentDetails?.totalChargeAmount ?? 0, r.fee?.currency?.code),
+    amount: exGstAmount(r.paymentDetails, r.fee?.currency?.code),
     count: 1,
   }));
   const sponsorRows = sponsorships
@@ -725,7 +736,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     .map((s) => {
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: toBase(s.paymentDetails?.totalChargeAmount ?? 0, s.fee?.currency?.code),
+        amount: exGstAmount(s.paymentDetails, s.fee?.currency?.code),
         count: 1,
       };
     });
@@ -733,7 +744,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     .filter((b) => isConfirmedStatus(b.status))
     .map((b) => ({
       label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-      amount: toBase(b.paymentDetails?.totalChargeAmount ?? 0, b.fee?.currency?.code),
+      amount: exGstAmount(b.paymentDetails, b.fee?.currency?.code),
       count: 1,
     }));
 
