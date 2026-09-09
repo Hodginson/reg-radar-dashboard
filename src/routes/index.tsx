@@ -376,7 +376,7 @@ function Dashboard() {
                         <th className="pb-2 font-medium">Location</th>
                         <th className="pb-2 text-right font-medium">Tickets</th>
                         <th className="pb-2 text-right font-medium">Bookings</th>
-                        <th className="pb-2 text-right font-medium">Revenue</th>
+                        <th className="pb-2 text-right font-medium">Revenue (ex GST)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -412,7 +412,7 @@ function Dashboard() {
 
             <Card className="mt-6 border-border/60">
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-                <CardTitle className="text-base font-medium">Financials</CardTitle>
+                <CardTitle className="text-base font-medium">Financials (ex GST)</CardTitle>
                 <span className="text-sm text-muted-foreground">
                   Total{" "}
                   <span className="font-semibold tabular-nums text-foreground">

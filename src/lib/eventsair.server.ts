@@ -140,7 +140,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount paymentStatus }
+              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -164,7 +164,7 @@ type LiveSponsorship = {
   quantity?: number | null;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
   package?: { name?: string | null } | null;
   sponsor?: { organizationName?: string | null } | null;
 };
@@ -173,7 +173,7 @@ type LiveExhibitionBooking = {
   id: string;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
   standType?: { name?: string | null } | null;
   exhibitor?: { organizationName?: string | null } | null;
 };
@@ -199,7 +199,7 @@ async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]
               quantity
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount }
+              paymentDetails { totalChargeAmount totalTaxAmount }
               package { name }
               sponsor { organizationName }
             }
@@ -238,7 +238,7 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
               id
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount }
+              paymentDetails { totalChargeAmount totalTaxAmount }
               standType { name }
               exhibitor { organizationName }
             }
@@ -262,7 +262,11 @@ type LiveFunctionRegistration = {
   createdAt: string;
   tickets?: number | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  paymentDetails?: {
+    totalChargeAmount?: number | null;
+    totalTaxAmount?: number | null;
+    paymentStatus?: string | null;
+  } | null;
   function?: { name?: string | null } | null;
 };
 
@@ -290,7 +294,7 @@ async function paginatedFunctionRegistrations(
               createdAt
               tickets
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount paymentStatus }
+              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
               function { name }
             }
             pageInfo { hasNextPage }
@@ -456,8 +460,12 @@ function demoDashboard(eventId: string): DashboardData {
     { label: "Awards Dinner", amount: 32000, count: 2 },
     { label: "Learning Centre", amount: 8800, count: 2 },
   ];
+  // Demo financials are also shown ex GST (10% stripped from the demo AUD prices).
   const sum = (items: { amount: number }[]) => items.reduce((s, i) => s + i.amount, 0);
   const countOf = (items: { count: number }[]) => items.reduce((s, i) => s + i.count, 0);
+  for (const item of [...ticketItems, ...exhibitorItems, ...sponsorItems]) {
+    item.amount /= 1.1;
+  }
   const streams: DashboardData["financials"]["streams"] = [
     { stream: "Tickets", amount: sum(ticketItems), count: countOf(ticketItems), items: ticketItems },
     {
@@ -492,9 +500,9 @@ function demoDashboard(eventId: string): DashboardData {
       .map(([membership, count]) => ({ membership, count }))
       .sort((a, b) => b.count - a.count),
     socialEvents: [
-      { name: "Melbourne Gala Dinner", tickets: 180, records: 165, amount: 27000, location: "Melbourne" },
-      { name: "Auckland Cocktail Reception", tickets: 96, records: 92, amount: 9600, location: "Auckland" },
-      { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040, location: "Christchurch" },
+      { name: "Melbourne Gala Dinner", tickets: 180, records: 165, amount: 27000 / 1.1, location: "Melbourne" },
+      { name: "Auckland Cocktail Reception", tickets: 96, records: 92, amount: 9600 / 1.1, location: "Auckland" },
+      { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040 / 1.1, location: "Christchurch" },
     ],
     locations: demoLocations,
     daily,
@@ -527,7 +535,11 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  paymentDetails?: {
+    totalChargeAmount?: number | null;
+    totalTaxAmount?: number | null;
+    paymentStatus?: string | null;
+  } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
@@ -554,6 +566,32 @@ async function currencyConverter(base: string) {
     const rate = rates[from];
     return rate ? amount / rate : amount;
   };
+}
+
+/**
+ * GST rates by currency, used as a fallback when EventsAir doesn't report an
+ * explicit tax amount on the payment (Australian GST 10%, New Zealand 15%).
+ */
+const GST_DIVISOR: Record<string, number> = {
+  AUD: 1.1,
+  NZD: 1.15,
+};
+
+/**
+ * Convert a tax-inclusive charge into its ex-GST amount. Prefer the tax
+ * EventsAir reports on the payment; otherwise strip GST at the currency's
+ * standard rate. Amounts are already in the event's base currency by the
+ * time this is called.
+ */
+function exGst(
+  charge: number,
+  tax: number | null | undefined,
+  currencyCode: string | null | undefined,
+): number {
+  if (!charge) return 0;
+  if (tax != null && tax > 0 && tax < charge) return charge - tax;
+  const divisor = GST_DIVISOR[(currencyCode ?? "").toUpperCase()] ?? GST_DIVISOR["AUD"]!;
+  return charge / divisor;
 }
 
 
@@ -680,10 +718,21 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const toBase = await currencyConverter(baseCurrency);
   const currency = baseCurrency;
   // Total charge is EventsAir's final amount after discounts, adjustments,
-  // tax and cancellations; fee is only the catalogue price.
+  // tax and cancellations; fee is only the catalogue price. Financials are
+  // shown ex GST: strip the reported tax amount (or the currency's standard
+  // GST rate when no tax amount is reported).
+  const exGstAmount = (
+    pd: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null | undefined,
+    code?: string | null,
+  ) => {
+    const charge = toBase(pd?.totalChargeAmount ?? 0, code);
+    const tax = pd?.totalTaxAmount != null ? toBase(pd.totalTaxAmount, code) : null;
+    return exGst(charge, tax, code);
+  };
+
   const ticketRows = allRegs.filter(isConfirmedRegistration).map((r) => ({
     label: r.type?.name ?? "Unspecified",
-    amount: toBase(r.paymentDetails?.totalChargeAmount ?? 0, r.fee?.currency?.code),
+    amount: exGstAmount(r.paymentDetails, r.fee?.currency?.code),
     count: 1,
   }));
   const sponsorRows = sponsorships
@@ -691,7 +740,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     .map((s) => {
       return {
         label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: toBase(s.paymentDetails?.totalChargeAmount ?? 0, s.fee?.currency?.code),
+        amount: exGstAmount(s.paymentDetails, s.fee?.currency?.code),
         count: 1,
       };
     });
@@ -699,7 +748,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     .filter((b) => isConfirmedStatus(b.status))
     .map((b) => ({
       label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-      amount: toBase(b.paymentDetails?.totalChargeAmount ?? 0, b.fee?.currency?.code),
+      amount: exGstAmount(b.paymentDetails, b.fee?.currency?.code),
       count: 1,
     }));
 
@@ -711,7 +760,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const row = socialMap.get(name) ?? { tickets: 0, records: 0, amount: 0 };
     row.tickets += f.tickets ?? 1;
     row.records += 1;
-    row.amount += toBase(f.paymentDetails?.totalChargeAmount ?? 0, f.fee?.currency?.code);
+    row.amount += exGstAmount(f.paymentDetails, f.fee?.currency?.code);
     socialMap.set(name, row);
   }
   const socialEvents = [...socialMap.entries()]
