@@ -164,7 +164,7 @@ type LiveSponsorship = {
   quantity?: number | null;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
   package?: { name?: string | null } | null;
   sponsor?: { organizationName?: string | null } | null;
 };
@@ -173,7 +173,7 @@ type LiveExhibitionBooking = {
   id: string;
   status?: string | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null } | null;
+  paymentDetails?: { totalChargeAmount?: number | null; totalTaxAmount?: number | null } | null;
   standType?: { name?: string | null } | null;
   exhibitor?: { organizationName?: string | null } | null;
 };
@@ -262,7 +262,11 @@ type LiveFunctionRegistration = {
   createdAt: string;
   tickets?: number | null;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  paymentDetails?: {
+    totalChargeAmount?: number | null;
+    totalTaxAmount?: number | null;
+    paymentStatus?: string | null;
+  } | null;
   function?: { name?: string | null } | null;
 };
 
@@ -527,7 +531,11 @@ type LiveRegistration = {
   id: string;
   createdAt: string;
   fee?: { amount?: number | null; currency?: { code?: string | null } | null } | null;
-  paymentDetails?: { totalChargeAmount?: number | null; paymentStatus?: string | null } | null;
+  paymentDetails?: {
+    totalChargeAmount?: number | null;
+    totalTaxAmount?: number | null;
+    paymentStatus?: string | null;
+  } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
 };
