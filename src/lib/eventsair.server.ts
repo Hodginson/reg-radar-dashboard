@@ -564,6 +564,32 @@ async function currencyConverter(base: string) {
   };
 }
 
+/**
+ * GST rates by currency, used as a fallback when EventsAir doesn't report an
+ * explicit tax amount on the payment (Australian GST 10%, New Zealand 15%).
+ */
+const GST_DIVISOR: Record<string, number> = {
+  AUD: 1.1,
+  NZD: 1.15,
+};
+
+/**
+ * Convert a tax-inclusive charge into its ex-GST amount. Prefer the tax
+ * EventsAir reports on the payment; otherwise strip GST at the currency's
+ * standard rate. Amounts are already in the event's base currency by the
+ * time this is called.
+ */
+function exGst(
+  charge: number,
+  tax: number | null | undefined,
+  currencyCode: string | null | undefined,
+): number {
+  if (!charge) return 0;
+  if (tax != null && tax > 0 && tax < charge) return charge - tax;
+  const divisor = GST_DIVISOR[(currencyCode ?? "").toUpperCase()] ?? GST_DIVISOR["AUD"]!;
+  return charge / divisor;
+}
+
 
 /**
  * Registration groups are the source of truth for membership
