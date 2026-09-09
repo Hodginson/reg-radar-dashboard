@@ -607,9 +607,12 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     ? { id: data.event.id, name: data.event.name, startDate: data.event.startDate }
     : { id: eventId, name: "Event", startDate: null };
   const allRegs = await paginatedRegistrations(eventId);
-  // Registration COUNTS exclude the complimentary dual-city bundle, but those
-  // tickets still carry real charges, so financials use the full set.
-  const regs = allRegs.filter((r) => !isExcludedTicketType(r.type?.name ?? ""));
+  // Registration COUNTS exclude cancelled/not-attending records and the
+  // complimentary dual-city bundle, but cancelled tickets can still carry
+  // real charges, so financials use their own filter over the full set.
+  const regs = allRegs
+    .filter(isConfirmedRegistration)
+    .filter((r) => !isExcludedTicketType(r.type?.name ?? ""));
 
   const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
   const dailyMap = new Map<string, number>();
