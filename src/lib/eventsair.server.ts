@@ -460,8 +460,12 @@ function demoDashboard(eventId: string): DashboardData {
     { label: "Awards Dinner", amount: 32000, count: 2 },
     { label: "Learning Centre", amount: 8800, count: 2 },
   ];
+  // Demo financials are also shown ex GST (10% stripped from the demo AUD prices).
   const sum = (items: { amount: number }[]) => items.reduce((s, i) => s + i.amount, 0);
   const countOf = (items: { count: number }[]) => items.reduce((s, i) => s + i.count, 0);
+  for (const item of [...ticketItems, ...exhibitorItems, ...sponsorItems]) {
+    item.amount /= 1.1;
+  }
   const streams: DashboardData["financials"]["streams"] = [
     { stream: "Tickets", amount: sum(ticketItems), count: countOf(ticketItems), items: ticketItems },
     {
@@ -756,7 +760,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const row = socialMap.get(name) ?? { tickets: 0, records: 0, amount: 0 };
     row.tickets += f.tickets ?? 1;
     row.records += 1;
-    row.amount += toBase(f.paymentDetails?.totalChargeAmount ?? 0, f.fee?.currency?.code);
+    row.amount += exGstAmount(f.paymentDetails, f.fee?.currency?.code);
     socialMap.set(name, row);
   }
   const socialEvents = [...socialMap.entries()]
