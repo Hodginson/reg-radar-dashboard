@@ -140,7 +140,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount paymentStatus }
+              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -199,7 +199,7 @@ async function paginatedSponsorships(eventId: string): Promise<LiveSponsorship[]
               quantity
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount }
+              paymentDetails { totalChargeAmount totalTaxAmount }
               package { name }
               sponsor { organizationName }
             }
@@ -238,7 +238,7 @@ async function paginatedExhibitionBookings(eventId: string): Promise<LiveExhibit
               id
               status
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount }
+              paymentDetails { totalChargeAmount totalTaxAmount }
               standType { name }
               exhibitor { organizationName }
             }
@@ -290,7 +290,7 @@ async function paginatedFunctionRegistrations(
               createdAt
               tickets
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount paymentStatus }
+              paymentDetails { totalChargeAmount totalTaxAmount paymentStatus }
               function { name }
             }
             pageInfo { hasNextPage }
