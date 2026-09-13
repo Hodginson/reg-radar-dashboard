@@ -54,6 +54,18 @@ function money(amount: number, currency: string) {
   }).format(amount);
 }
 
+function ausDate(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function ausDateShort(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
 function Stat({
   label,
   value,
