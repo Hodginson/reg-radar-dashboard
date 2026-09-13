@@ -134,7 +134,7 @@ function Dashboard() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {data?.event.name ?? "Select an event"}
-              {data?.event.startDate ? ` · starts ${data.event.startDate}` : ""}
+              {data?.event.startDate ? ` · starts ${ausDate(data.event.startDate)}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -197,7 +197,7 @@ function Dashboard() {
               <CardHeader className="gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <CardTitle className="text-base font-medium">
-                    Daily registrations · {days} days to {chartData[chartData.length - 1]?.date}
+                    Daily registrations · {days} days to {ausDateShort(chartData[chartData.length - 1]?.date)}
                   </CardTitle>
                   <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
                     <SelectTrigger className="w-36">
@@ -250,7 +250,7 @@ function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(v: string) => v.slice(5)}
+                      tickFormatter={(v: string) => ausDateShort(v)}
                       tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
                       tickLine={false}
                       axisLine={false}
