@@ -351,6 +351,41 @@ function Dashboard() {
 
               <Card className="border-border/60 lg:col-span-2">
                 <CardHeader>
+                  <CardTitle className="text-base font-medium">Paid vs discount code</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { label: "Paid registrations", count: data.paidVsDiscount.paid },
+                    { label: "Discount code used", count: data.paidVsDiscount.discountCode },
+                  ].map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-baseline justify-between text-sm">
+                        <span className="text-foreground">{row.label}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {row.count}
+                          <span className="ml-2 text-xs">
+                            {Math.round(
+                              (row.count / Math.max(1, data.totalRegistrations)) * 100,
+                            )}
+                            %
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-primary"
+                          style={{
+                            width: `${(row.count / Math.max(1, data.totalRegistrations)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 lg:col-span-2">
+                <CardHeader>
                   <CardTitle className="text-base font-medium">By registration type</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
