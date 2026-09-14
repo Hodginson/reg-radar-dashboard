@@ -29,6 +29,7 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  paidVsDiscount: { paid: number; discountCode: number };
   socialEvents: {
     name: string;
     tickets: number;
@@ -140,7 +141,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount taxAmount paymentStatus }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode { code name } discountAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -509,6 +510,10 @@ function demoDashboard(eventId: string): DashboardData {
       { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040 / 1.1, location: "Christchurch" },
     ],
     locations: demoLocations,
+    paidVsDiscount: {
+      paid: Math.round(total * 0.82),
+      discountCode: total - Math.round(total * 0.82),
+    },
     daily,
     recent,
   };
@@ -543,6 +548,8 @@ type LiveRegistration = {
     totalChargeAmount?: number | null;
     taxAmount?: number | null;
     paymentStatus?: string | null;
+    discountCode?: { code?: string | null; name?: string | null } | null;
+    discountAmount?: number | null;
   } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
@@ -675,6 +682,13 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
+
+  // A registration counts as "discount code" when EventsAir recorded a code
+  // on the payment; everything else is a straight paid registration.
+  const discountCount = regs.filter(
+    (r) => (r.paymentDetails?.discountCode?.code ?? r.paymentDetails?.discountCode?.name ?? "").trim().length > 0,
+  ).length;
+  const paidVsDiscount = { paid: regs.length - discountCount, discountCode: discountCount };
 
   const locations = [...locationMap.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -815,6 +829,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       .sort((a, b) => b.count - a.count),
     socialEvents,
     locations,
+    paidVsDiscount,
     daily,
     recent,
   };
