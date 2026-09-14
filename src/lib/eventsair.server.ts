@@ -830,6 +830,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       .sort((a, b) => b.count - a.count),
     socialEvents,
     locations,
+    paidVsDiscount,
     daily,
     recent,
   };
