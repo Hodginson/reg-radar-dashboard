@@ -141,7 +141,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode discountAmount }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode { code name } discountAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -548,7 +548,7 @@ type LiveRegistration = {
     totalChargeAmount?: number | null;
     taxAmount?: number | null;
     paymentStatus?: string | null;
-    discountCode?: string | null;
+    discountCode?: { code?: string | null; name?: string | null } | null;
     discountAmount?: number | null;
   } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
@@ -685,10 +685,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
 
   // A registration counts as "discount code" when EventsAir recorded a code
   // on the payment; everything else is a straight paid registration.
-  const discountCount = regs.filter((r) => {
-    const code = r.paymentDetails?.discountCode;
-    return typeof code === "string" && code.trim().length > 0;
-  }).length;
+  const discountCount = regs.filter(
+    (r) => (r.paymentDetails?.discountCode?.code ?? r.paymentDetails?.discountCode?.name ?? "").trim().length > 0,
+  ).length;
   const paidVsDiscount = { paid: regs.length - discountCount, discountCode: discountCount };
 
   const locations = [...locationMap.entries()]
