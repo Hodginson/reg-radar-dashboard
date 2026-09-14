@@ -386,8 +386,17 @@ export function locationFromTicketName(name: string): string {
 /**
  * Complimentary "Full Conference Access" tickets that bundle Christchurch and
  * Auckland together should not be counted as separate registrations.
+ * Match any variation of the name (Early Bird prefix, "and" vs "&",
+ * either city order).
  */
-const EXCLUDED_TICKET_TYPES = ["full conference access christchurch & auckland"];
+export function isExcludedTicketType(name: string): boolean {
+  const normalized = name.toLowerCase();
+  return (
+    normalized.includes("full conference access") &&
+    normalized.includes("christchurch") &&
+    normalized.includes("auckland")
+  );
+}
 
 /**
  * Ticket names usually flag membership ("Member Full Delegate",
@@ -400,11 +409,6 @@ export function membershipFromTicketName(name: string): string {
   if (/\bmembers?\b/.test(lower)) return "Member";
   if (/\bstudent\b/.test(lower)) return "Student";
   return "Unspecified";
-}
-
-export function isExcludedTicketType(name: string): boolean {
-  const normalized = name.toLowerCase().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ").trim();
-  return EXCLUDED_TICKET_TYPES.includes(normalized);
 }
 
 function demoDashboard(eventId: string): DashboardData {
