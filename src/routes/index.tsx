@@ -355,8 +355,11 @@ function Dashboard() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {[
-                    { label: "Paid registrations", count: data.paidVsDiscount.paid },
-                    { label: "Discount code used", count: data.paidVsDiscount.discountCode },
+                    { label: "Paid registrations", count: data.paidVsDiscount?.paid ?? 0 },
+                    {
+                      label: "Discount code used",
+                      count: data.paidVsDiscount?.discountCode ?? 0,
+                    },
                   ].map((row) => (
                     <div key={row.label}>
                       <div className="flex items-baseline justify-between text-sm">
