@@ -99,12 +99,12 @@ function Dashboard() {
   });
 
   const events = eventsQuery.data?.events ?? [];
-  const selectedId = eventId ?? events[0]?.id;
+  const selectedId = (eventId || events[0]?.id || "").trim();
 
   const dashboardQuery = useQuery({
     queryKey: ["eventsair", "dashboard", selectedId],
-    queryFn: () => getEventDashboard({ data: { eventId: selectedId! } }),
-    enabled: Boolean(selectedId),
+    queryFn: () => getEventDashboard({ data: { eventId: selectedId } }),
+    enabled: selectedId.length > 0,
   });
 
   const data = dashboardQuery.data;
