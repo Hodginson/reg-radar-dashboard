@@ -29,6 +29,7 @@ export type DashboardData = {
   byType: { type: string; count: number }[];
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
+  paidVsDiscount: { paid: number; discountCode: number };
   socialEvents: {
     name: string;
     tickets: number;
@@ -140,7 +141,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount taxAmount paymentStatus }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode discountAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -543,6 +544,8 @@ type LiveRegistration = {
     totalChargeAmount?: number | null;
     taxAmount?: number | null;
     paymentStatus?: string | null;
+    discountCode?: string | null;
+    discountAmount?: number | null;
   } | null;
   type?: { name?: string | null; group?: { name?: string | null } | null } | null;
   contact?: { firstName?: string | null; lastName?: string | null } | null;
