@@ -510,6 +510,10 @@ function demoDashboard(eventId: string): DashboardData {
       { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040 / 1.1, location: "Christchurch" },
     ],
     locations: demoLocations,
+    paidVsDiscount: {
+      paid: Math.round(total * 0.82),
+      discountCode: total - Math.round(total * 0.82),
+    },
     daily,
     recent,
   };
@@ -678,6 +682,14 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
+
+  // A registration counts as "discount code" when EventsAir recorded a code
+  // on the payment; everything else is a straight paid registration.
+  const discountCount = regs.filter((r) => {
+    const code = r.paymentDetails?.discountCode;
+    return typeof code === "string" && code.trim().length > 0;
+  }).length;
+  const paidVsDiscount = { paid: regs.length - discountCount, discountCode: discountCount };
 
   const locations = [...locationMap.entries()]
     .sort((a, b) => b[1] - a[1])
