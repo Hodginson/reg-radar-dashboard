@@ -99,7 +99,12 @@ function Dashboard() {
   });
 
   const events = eventsQuery.data?.events ?? [];
-  const selectedId = (eventId || events[0]?.id || "").trim();
+  const selectedId = (
+    eventId ||
+    events.find((e) => /aca|symposium/i.test(e.name))?.id ||
+    events[0]?.id ||
+    ""
+  ).trim();
 
   const dashboardQuery = useQuery({
     queryKey: ["eventsair", "dashboard", selectedId],
