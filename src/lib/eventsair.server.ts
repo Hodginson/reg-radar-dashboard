@@ -748,27 +748,23 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     return exGst(charge, tax, code);
   };
 
-  const ticketRows = allRegs.filter(isConfirmedRegistration).map((r) => ({
+  // Financials are unfiltered: every record's charge counts, converted into
+  // the event's base currency at the fixed rate.
+  const ticketRows = allRegs.map((r) => ({
     label: r.type?.name ?? "Unspecified",
     amount: exGstAmount(r.paymentDetails, r.fee?.currency?.code),
     count: 1,
   }));
-  const sponsorRows = sponsorships
-    .filter((s) => isConfirmedStatus(s.status))
-    .map((s) => {
-      return {
-        label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
-        amount: exGstAmount(s.paymentDetails, s.fee?.currency?.code),
-        count: 1,
-      };
-    });
-  const exhibitorRows = bookings
-    .filter((b) => isConfirmedStatus(b.status))
-    .map((b) => ({
-      label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
-      amount: exGstAmount(b.paymentDetails, b.fee?.currency?.code),
-      count: 1,
-    }));
+  const sponsorRows = sponsorships.map((s) => ({
+    label: s.package?.name ?? s.sponsor?.organizationName ?? "Sponsorship",
+    amount: exGstAmount(s.paymentDetails, s.fee?.currency?.code),
+    count: 1,
+  }));
+  const exhibitorRows = bookings.map((b) => ({
+    label: b.standType?.name ?? b.exhibitor?.organizationName ?? "Exhibition stand",
+    amount: exGstAmount(b.paymentDetails, b.fee?.currency?.code),
+    count: 1,
+  }));
 
   // Social event (function) tickets: dinners, receptions etc.
   const socialMap = new Map<string, { tickets: number; records: number; amount: number }>();
