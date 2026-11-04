@@ -142,7 +142,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount taxAmount totalOutstandingAmount paymentStatus discountCode { code name } discountAmount }
+              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode { code name } discountAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -553,7 +553,6 @@ type LiveRegistration = {
   paymentDetails?: {
     totalChargeAmount?: number | null;
     taxAmount?: number | null;
-    totalOutstandingAmount?: number | null;
     paymentStatus?: string | null;
     discountCode?: { code?: string | null; name?: string | null } | null;
     discountAmount?: number | null;
@@ -687,11 +686,12 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const perDay = dailyLocationMap.get(key) ?? new Map<string, number>();
     perDay.set(loc, (perDay.get(loc) ?? 0) + 1);
     dailyLocationMap.set(key, perDay);
-    // "Paid" means nothing is still owed on the registration
-    // (totalOutstandingAmount is zero/absent); anything owed counts as not paid.
+    // "Not paid" means the registration used a discount code; everything
+    // else counts as a straight paid registration (same rule as the
+    // paid vs discount code totals).
     const paidRow = paidLocationMap.get(loc) ?? { paid: 0, notPaid: 0 };
-    const outstanding = r.paymentDetails?.totalOutstandingAmount ?? 0;
-    if (outstanding > 0) paidRow.notPaid += 1;
+    const usedDiscount = ((r.paymentDetails?.discountCode?.code ?? "") + (r.paymentDetails?.discountCode?.name ?? "")).trim().length > 0;
+    if (usedDiscount) paidRow.notPaid += 1;
     else paidRow.paid += 1;
     paidLocationMap.set(loc, paidRow);
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
