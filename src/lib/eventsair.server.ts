@@ -30,6 +30,7 @@ export type DashboardData = {
   byLocation: { location: string; count: number }[];
   byMembership: { membership: string; count: number }[];
   paidVsDiscount: { paid: number; discountCode: number };
+  paidByLocation: { location: string; paid: number; notPaid: number }[];
   socialEvents: {
     name: string;
     tickets: number;
@@ -141,7 +142,7 @@ async function paginatedRegistrations(eventId: string): Promise<LiveRegistration
               id
               createdAt
               fee { amount currency { code } }
-              paymentDetails { totalChargeAmount taxAmount paymentStatus discountCode { code name } discountAmount }
+              paymentDetails { totalChargeAmount taxAmount totalOutstandingAmount paymentStatus discountCode { code name } discountAmount }
               type { name group { name } }
               contact { firstName lastName }
             }
@@ -510,6 +511,11 @@ function demoDashboard(eventId: string): DashboardData {
       { name: "Christchurch Dinner", tickets: 64, records: 60, amount: 7040 / 1.1, location: "Christchurch" },
     ],
     locations: demoLocations,
+    paidByLocation: demoLocations.map((loc) => {
+      const count = demoLocationMap.get(loc) ?? 0;
+      const paid = Math.round(count * 0.82);
+      return { location: loc, paid, notPaid: count - paid };
+    }),
     paidVsDiscount: {
       paid: Math.round(total * 0.82),
       discountCode: total - Math.round(total * 0.82),
@@ -547,6 +553,7 @@ type LiveRegistration = {
   paymentDetails?: {
     totalChargeAmount?: number | null;
     taxAmount?: number | null;
+    totalOutstandingAmount?: number | null;
     paymentStatus?: string | null;
     discountCode?: { code?: string | null; name?: string | null } | null;
     discountAmount?: number | null;
@@ -669,6 +676,7 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const typeMap = new Map<string, number>();
   const locationMap = new Map<string, number>();
   const membershipMap = new Map<string, number>();
+  const paidLocationMap = new Map<string, { paid: number; notPaid: number }>();
   for (const r of regs) {
     const key = dayKey(r.createdAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
@@ -679,6 +687,13 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
     const perDay = dailyLocationMap.get(key) ?? new Map<string, number>();
     perDay.set(loc, (perDay.get(loc) ?? 0) + 1);
     dailyLocationMap.set(key, perDay);
+    // "Paid" means nothing is still owed on the registration
+    // (totalOutstandingAmount is zero/absent); anything owed counts as not paid.
+    const paidRow = paidLocationMap.get(loc) ?? { paid: 0, notPaid: 0 };
+    const outstanding = r.paymentDetails?.totalOutstandingAmount ?? 0;
+    if (outstanding > 0) paidRow.notPaid += 1;
+    else paidRow.paid += 1;
+    paidLocationMap.set(loc, paidRow);
     const mem = membershipFromGroupName(r.type?.group?.name ?? "");
     membershipMap.set(mem, (membershipMap.get(mem) ?? 0) + 1);
   }
@@ -825,6 +840,9 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
       .sort((a, b) => b.count - a.count),
     socialEvents,
     locations,
+    paidByLocation: locations.map(
+      (loc) => ({ location: loc, ...(paidLocationMap.get(loc) ?? { paid: 0, notPaid: 0 }) }),
+    ),
     paidVsDiscount,
     daily,
     recent,

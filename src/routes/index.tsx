@@ -354,7 +354,7 @@ function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/60 lg:col-span-2">
+              <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-base font-medium">Paid vs discount code</CardTitle>
                 </CardHeader>
@@ -389,6 +389,44 @@ function Dashboard() {
                       </div>
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-base font-medium">Paid vs unpaid by location</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {data.paidByLocation.map((l) => {
+                    const totalCity = l.paid + l.notPaid;
+                    const paidPct = Math.round((l.paid / Math.max(1, totalCity)) * 100);
+                    return (
+                      <div key={l.location}>
+                        <div className="flex items-baseline justify-between text-sm">
+                          <span className="text-foreground">{l.location}</span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {l.paid} paid
+                            <span className="mx-1">·</span>
+                            {l.notPaid} not paid
+                            <span className="ml-2 text-xs">{paidPct}% paid</span>
+                          </span>
+                        </div>
+                        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full bg-primary"
+                            style={{ width: `${(l.paid / Math.max(1, totalCity)) * 100}%` }}
+                          />
+                          <div
+                            className="h-full bg-primary/25"
+                            style={{ width: `${(l.notPaid / Math.max(1, totalCity)) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {data.paidByLocation.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No registrations</p>
+                  )}
                 </CardContent>
               </Card>
 
