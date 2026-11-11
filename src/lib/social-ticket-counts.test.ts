@@ -2,14 +2,14 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { addedSocialTicketQuantity } from "./social-ticket-counts";
 
-describe("Melbourne dinner added tickets", () => {
+describe("Melbourne dinner tickets sold", () => {
   const dinner = (tickets: number | null, paymentStatus: string) => ({
     tickets,
     function: { name: "Melbourne Symposium Dinner - Elará Melbourne" },
     paymentDetails: { paymentStatus },
   });
 
-  test("excludes package-included dinners and counts only added tickets", () => {
+  test("counts 164 tickets including package tickets without guest-of duplicates", () => {
     const records = [
       ...Array.from({ length: 148 }, () => dinner(1, "INCLUSIVE")),
       ...Array.from({ length: 11 }, () => dinner(1, "PURCHASE")),
@@ -20,8 +20,8 @@ describe("Melbourne dinner added tickets", () => {
       dinner(0, "PURCHASE"),
       dinner(null, "PURCHASE"),
     ];
-    assert.equal(records.reduce((sum, row) => sum + addedSocialTicketQuantity(row), 0), 22);
-    assert.equal(records.filter((row) => addedSocialTicketQuantity(row) > 0).length, 21);
+    assert.equal(records.reduce((sum, row) => sum + addedSocialTicketQuantity(row), 0), 164);
+    assert.equal(records.filter((row) => addedSocialTicketQuantity(row) > 0).length, 163);
   });
 
   test("preserves package inclusions for other social events", () => {
