@@ -10,6 +10,8 @@
  * is fully usable before the API is wired up.
  */
 
+import { addedSocialTicketQuantity } from "./social-ticket-counts";
+
 const API_URL = "https://api.eventsair.com/graphql";
 const API_SCOPE =
   "https://eventsairprod.onmicrosoft.com/85d8f626-4e3d-4357-89c6-327d4e6d3d93/.default";
@@ -785,9 +787,11 @@ export async function fetchDashboard(eventId: string): Promise<DashboardData> {
   const socialMap = new Map<string, { tickets: number; records: number; amount: number }>();
   for (const f of functionRegs) {
     if (NON_CONFIRMED_PAYMENT_STATUSES.has(f.paymentDetails?.paymentStatus ?? "")) continue;
+    const tickets = addedSocialTicketQuantity(f);
+    if (tickets <= 0) continue;
     const name = f.function?.name ?? "Unspecified";
     const row = socialMap.get(name) ?? { tickets: 0, records: 0, amount: 0 };
-    row.tickets += f.tickets ?? 1;
+    row.tickets += tickets;
     row.records += 1;
     row.amount += exGstAmount(f.paymentDetails, f.fee?.currency?.code);
     socialMap.set(name, row);
